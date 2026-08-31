@@ -10,7 +10,7 @@ export default async function Home() {
 
   const { data: apartamentos } = await supabase
     .from("apartamentos")
-    .select("id, apartamento, piso, cliente")
+    .select("id, apartamento, piso, clientes(nombre)")
     .order("apartamento");
 
   return (
@@ -37,7 +37,7 @@ export default async function Home() {
                   <span className="font-medium">{a.apartamento}</span>
                   {a.piso && <span className="text-ink/50"> · {a.piso}</span>}
                 </span>
-                <span className="text-sm text-ink/40">{a.cliente ?? ""}</span>
+                <span className="text-sm text-ink/40">{a.clientes?.nombre ?? ""}</span>
               </Link>
             </li>
           ))
