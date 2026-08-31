@@ -25,6 +25,11 @@ export default async function NuevoHuespedPage({
     .select("codigo, descripcion")
     .order("codigo");
 
+  const { data: parentescos } = await supabase
+    .from("parentescos")
+    .select("codigo, descripcion")
+    .order("descripcion");
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Link
@@ -150,8 +155,15 @@ export default async function NuevoHuespedPage({
           <input id="rol" name="rol" placeholder="Titular, acompañante…" />
         </div>
         <div>
-          <label htmlFor="parentesco">Parentesco</label>
-          <input id="parentesco" name="parentesco" />
+          <label htmlFor="parentesco_codigo">Parentesco</label>
+          <select id="parentesco_codigo" name="parentesco_codigo" defaultValue="">
+            <option value="">Ninguno / no aplica</option>
+            {parentescos?.map((p) => (
+              <option key={p.codigo} value={p.codigo}>
+                {p.descripcion}
+              </option>
+            ))}
+          </select>
         </div>
 
         <button
