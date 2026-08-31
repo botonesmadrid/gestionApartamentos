@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { crearReserva } from "@/app/actions";
+import { createClient } from "@/lib/supabase/server";
 
-export default function NuevaReservaPage({
+export default async function NuevaReservaPage({
   params,
 }: {
   params: { id: string };
 }) {
   const accion = crearReserva.bind(null, params.id);
+
+  const supabase = createClient();
+  const { data: origenes } = await supabase
+    .from("origenes_reserva")
+    .select("codigo, nombre")
+    .order("nombre");
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -62,8 +69,17 @@ export default function NuevaReservaPage({
         </div>
 
         <div>
-          <label htmlFor="origen_reserva">Origen de la reserva</label>
-          <input id="origen_reserva" name="origen_reserva" placeholder="Booking, Airbnb…" />
+          <label htmlFor="origen_codigo">Origen de la reserva</label>
+          <select id="origen_codigo" name="origen_codigo" defaultValue="">
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {origenes?.map((o) => (
+              <option key={o.codigo} value={o.codigo}>
+                {o.nombre}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="codigo_reserva">Código de reserva</label>
