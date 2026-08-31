@@ -19,7 +19,7 @@ export default async function ApartamentoPage({
 
   const { data: reservas } = await supabase
     .from("reservas")
-    .select("id, nombre, apellido1, fecha_entrada, fecha_salida, origen_reserva, importe")
+    .select("id, nombre, apellido1, fecha_entrada, fecha_salida, importe, origenes_reserva(nombre)")
     .eq("apartamento_id", params.id)
     .order("fecha_entrada", { ascending: false });
 
@@ -63,7 +63,7 @@ export default async function ApartamentoPage({
                   </span>
                 </span>
                 <span className="text-sm text-ink/40">
-                  {r.origen_reserva}
+                  {r.origenes_reserva?.nombre}
                   {r.importe ? ` · ${r.importe} €` : ""}
                 </span>
               </Link>
