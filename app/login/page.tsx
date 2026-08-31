@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "enviando" | "enviado" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
   async function enviarEnlace(e: React.FormEvent) {
     e.preventDefault();
@@ -17,7 +18,13 @@ export default function LoginPage() {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
-    setStatus(error ? "error" : "enviado");
+    if (error) {
+      console.error("Error signInWithOtp:", error);
+      setErrorMsg(error.message);
+      setStatus("error");
+    } else {
+      setStatus("enviado");
+    }
   }
 
   return (
@@ -56,7 +63,7 @@ export default function LoginPage() {
             </button>
             {status === "error" && (
               <p className="text-sm text-clay">
-                No se ha podido enviar el enlace. Inténtalo de nuevo.
+                No se ha podido enviar el enlace: {errorMsg || "inténtalo de nuevo."}
               </p>
             )}
           </form>
