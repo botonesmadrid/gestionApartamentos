@@ -20,6 +20,11 @@ export default async function NuevoHuespedPage({
     .select("codigo, nombre")
     .order("nombre");
 
+  const { data: sexos } = await supabase
+    .from("sexos")
+    .select("codigo, descripcion")
+    .order("codigo");
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Link
@@ -52,8 +57,17 @@ export default async function NuevoHuespedPage({
           <input id="fecha_nacimiento" name="fecha_nacimiento" type="date" />
         </div>
         <div>
-          <label htmlFor="sexo">Sexo</label>
-          <input id="sexo" name="sexo" />
+          <label htmlFor="sexo_codigo">Sexo</label>
+          <select id="sexo_codigo" name="sexo_codigo" defaultValue="">
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {sexos?.map((s) => (
+              <option key={s.codigo} value={s.codigo}>
+                {s.descripcion}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
