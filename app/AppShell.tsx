@@ -12,11 +12,8 @@ const ITEMS_LATERAL = [
   { href: "/admin/maestros", etiqueta: "Maestros", icono: IconoMaestros },
 ];
 
-// Menú superior (en móvil pasa a barra inferior): Entradas primero, luego Apartamentos
-const ITEMS_SUPERIOR = [
-  { href: "/", etiqueta: "Entradas", icono: IconoEntradas },
-  { href: "/apartamentos", etiqueta: "Apartamentos", icono: IconoApartamentos },
-];
+// Menú superior (en móvil pasa a barra inferior): solo Entradas
+const ITEMS_SUPERIOR = [{ href: "/", etiqueta: "Entradas", icono: IconoEntradas }];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -116,15 +113,6 @@ function IconoEntradas() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="3" y="4" width="18" height="17" rx="2" />
       <path d="M3 9h18M8 2v4M16 2v4" />
-    </svg>
-  );
-}
-
-function IconoApartamentos() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M4 21V9l8-6 8 6v12" />
-      <path d="M9 21v-7h6v7" />
     </svg>
   );
 }
