@@ -37,7 +37,7 @@ export default async function Home() {
                   <span className="font-medium">{a.apartamento}</span>
                   {a.piso && <span className="text-ink/50"> · {a.piso}</span>}
                 </span>
-                <span className="text-sm text-ink/40">{a.clientes?.nombre ?? ""}</span>
+                <span className="text-sm text-ink/40">{a.clientes?.[0]?.nombre ?? ""}</span>
               </Link>
             </li>
           ))
