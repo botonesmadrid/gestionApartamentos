@@ -92,6 +92,17 @@ export async function crearHuesped(
   const str = (v: FormDataEntryValue | null) =>
     v === null || v === "" ? null : String(v);
 
+  const codigoMunicipioRef = str(formData.get("codigo_municipio_ref"));
+  let nombreMunicipio: string | null = null;
+  if (codigoMunicipioRef) {
+    const { data: municipio } = await supabase
+      .from("municipios")
+      .select("nombre")
+      .eq("codigo", codigoMunicipioRef)
+      .maybeSingle();
+    nombreMunicipio = municipio?.nombre ?? null;
+  }
+
   const { error } = await supabase.from("huespedes").insert({
     reserva_id: reservaId,
     nombre: String(formData.get("nombre") ?? ""),
@@ -102,7 +113,7 @@ export async function crearHuesped(
     numero_documento: str(formData.get("numero_documento")),
     direccion: str(formData.get("direccion")),
     codigo_postal: str(formData.get("codigo_postal")),
-    nombre_municipio: str(formData.get("nombre_municipio")),
+    nombre_municipio: nombreMunicipio,
     telefono: str(formData.get("telefono")),
     correo: str(formData.get("correo")),
     tipo_documento_codigo: str(formData.get("tipo_documento_codigo")),
@@ -111,7 +122,7 @@ export async function crearHuesped(
     pais_codigo: str(formData.get("pais_codigo")),
     sexo_codigo: str(formData.get("sexo_codigo")),
     parentesco_codigo: str(formData.get("parentesco_codigo")),
-    codigo_municipio: str(formData.get("codigo_municipio")),
+    codigo_municipio_ref: codigoMunicipioRef,
   });
 
   if (error) throw new Error(error.message);
