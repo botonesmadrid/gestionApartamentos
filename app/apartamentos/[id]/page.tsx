@@ -33,7 +33,7 @@ export default async function ApartamentoPage({
         {apartamento.apartamento}
       </h1>
       <p className="mt-1 text-sm text-ink/60">
-        {[apartamento.piso, apartamento.clientes?.nombre].filter(Boolean).join(" · ")}
+        {[apartamento.piso, apartamento.clientes?.[0]?.nombre].filter(Boolean).join(" · ")}
       </p>
 
       <div className="mt-8 flex items-center justify-between">
@@ -63,7 +63,7 @@ export default async function ApartamentoPage({
                   </span>
                 </span>
                 <span className="text-sm text-ink/40">
-                  {r.origenes_reserva?.nombre}
+                  {r.origenes_reserva?.[0]?.nombre}
                   {r.importe ? ` · ${r.importe} €` : ""}
                 </span>
               </Link>
