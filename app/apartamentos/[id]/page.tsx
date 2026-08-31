@@ -1,90 +1,80 @@
 import { createClient } from "@/lib/supabase/server";
-import { crearApartamento, cerrarSesion } from "./actions";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
-export default async function Home() {
+export default async function ApartamentoPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  const { data: apartamentos } = await supabase
+  const { data: apartamento } = await supabase
     .from("apartamentos")
-    .select("id, apartamento, piso, clientes(nombre)")
-    .order("apartamento");
+    .select("*, clientes(nombre)")
+    .eq("id", params.id)
+    .single();
+
+  if (!apartamento) notFound();
+
+  const { data: reservas } = await supabase
+    .from("reservas")
+    .select("id, nombre, apellido1, fecha_entrada, fecha_salida, origen_reserva, importe")
+    .eq("apartamento_id", params.id)
+    .order("fecha_entrada", { ascending: false });
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-semibold">Tus apartamentos</h1>
-          <p className="mt-1 text-sm text-ink/60">{user?.email}</p>
-        </div>
-        <form action={cerrarSesion}>
-          <button className="text-sm text-ink/50 hover:text-ink">Salir</button>
-        </form>
+      <Link href="/" className="text-sm text-ink/50 hover:text-ink">
+        ← Todos los apartamentos
+      </Link>
+
+      <h1 className="mt-2 font-display text-3xl font-semibold">
+        {apartamento.apartamento}
+      </h1>
+      <p className="mt-1 text-sm text-ink/60">
+        {[apartamento.piso, apartamento.clientes?.nombre].filter(Boolean).join(" · ")}
+      </p>
+
+      <div className="mt-8 flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold">Reservas</h2>
+        <Link
+          href={`/apartamentos/${params.id}/reservas/nueva`}
+          className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-paper hover:bg-ink/90"
+        >
+          + Nueva reserva
+        </Link>
       </div>
 
-      <ul className="mt-8 divide-y divide-line rounded-lg border border-line bg-white">
-        {apartamentos?.length ? (
-          apartamentos.map((a) => (
-            <li key={a.id}>
+      <ul className="mt-4 divide-y divide-line rounded-lg border border-line bg-white">
+        {reservas?.length ? (
+          reservas.map((r) => (
+            <li key={r.id}>
               <Link
-                href={`/apartamentos/${a.id}`}
+                href={`/apartamentos/${params.id}/reservas/${r.id}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-paper"
               >
                 <span>
-                  <span className="font-medium">{a.apartamento}</span>
-                  {a.piso && <span className="text-ink/50"> · {a.piso}</span>}
+                  <span className="font-medium">
+                    {r.nombre} {r.apellido1}
+                  </span>
+                  <span className="ml-2 text-sm text-ink/50">
+                    {r.fecha_entrada} → {r.fecha_salida}
+                  </span>
                 </span>
-                <span className="text-sm text-ink/40">{a.clientes?.nombre ?? ""}</span>
+                <span className="text-sm text-ink/40">
+                  {r.origen_reserva}
+                  {r.importe ? ` · ${r.importe} €` : ""}
+                </span>
               </Link>
             </li>
           ))
         ) : (
           <li className="px-4 py-6 text-sm text-ink/50">
-            Todavía no tienes apartamentos dados de alta.
+            Sin reservas todavía en este apartamento.
           </li>
         )}
       </ul>
-
-      <details className="mt-8 rounded-lg border border-line bg-white p-4">
-        <summary className="cursor-pointer text-sm font-medium">
-          + Añadir apartamento
-        </summary>
-        <form action={crearApartamento} className="mt-4 grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label htmlFor="apartamento">Nombre / identificador</label>
-            <input id="apartamento" name="apartamento" required placeholder="Ático Sol" />
-          </div>
-          <div>
-            <label htmlFor="piso">Piso</label>
-            <input id="piso" name="piso" placeholder="3ºB" />
-          </div>
-          <div>
-            <label htmlFor="cliente">Cliente / propietario</label>
-            <input id="cliente" name="cliente" />
-          </div>
-          <div>
-            <label htmlFor="codigo_establecimiento">Código de establecimiento</label>
-            <input id="codigo_establecimiento" name="codigo_establecimiento" />
-          </div>
-          <div>
-            <label htmlFor="num_registro">Nº de registro</label>
-            <input id="num_registro" name="num_registro" />
-          </div>
-          <div className="col-span-2">
-            <label htmlFor="cru">CRU</label>
-            <input id="cru" name="cru" />
-          </div>
-          <button
-            type="submit"
-            className="col-span-2 mt-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-ink/90"
-          >
-            Guardar apartamento
-          </button>
-        </form>
-      </details>
     </main>
   );
 }
