@@ -75,7 +75,7 @@ export async function crearReserva(apartamentoId: string, formData: FormData) {
     codigo_reserva: str(formData.get("codigo_reserva")),
     origen_codigo: str(formData.get("origen_codigo")),
     fecha_pago: str(formData.get("fecha_pago")),
-    forma_pago: str(formData.get("forma_pago")),
+    forma_pago_codigo: str(formData.get("forma_pago_codigo")),
   });
 
   if (error) throw new Error(error.message);
