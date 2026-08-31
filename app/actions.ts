@@ -73,6 +73,7 @@ export async function crearReserva(apartamentoId: string, formData: FormData) {
     importe: num(formData.get("importe")),
     comision_portal: num(formData.get("comision_portal")),
     codigo_reserva: str(formData.get("codigo_reserva")),
+    telefono: str(formData.get("telefono")),
     origen_codigo: str(formData.get("origen_codigo")),
     fecha_pago: str(formData.get("fecha_pago")),
     forma_pago_codigo: str(formData.get("forma_pago_codigo")),
