@@ -1,12 +1,24 @@
 import Link from "next/link";
 import { crearHuesped } from "@/app/actions";
+import { createClient } from "@/lib/supabase/server";
 
-export default function NuevoHuespedPage({
+export default async function NuevoHuespedPage({
   params,
 }: {
   params: { id: string; reservaId: string };
 }) {
   const accion = crearHuesped.bind(null, params.id, params.reservaId);
+
+  const supabase = createClient();
+  const { data: tiposDocumento } = await supabase
+    .from("tipos_documento")
+    .select("codigo, descripcion")
+    .order("codigo");
+
+  const { data: paises } = await supabase
+    .from("paises")
+    .select("codigo, nombre")
+    .order("nombre");
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -45,8 +57,17 @@ export default function NuevoHuespedPage({
         </div>
 
         <div>
-          <label htmlFor="tipo_documento">Tipo de documento</label>
-          <input id="tipo_documento" name="tipo_documento" placeholder="DNI, Pasaporte…" />
+          <label htmlFor="tipo_documento_codigo">Tipo de documento</label>
+          <select id="tipo_documento_codigo" name="tipo_documento_codigo" defaultValue="">
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {tiposDocumento?.map((t) => (
+              <option key={t.codigo} value={t.codigo}>
+                {t.descripcion}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="soporte_documento">Soporte del documento</label>
@@ -58,12 +79,30 @@ export default function NuevoHuespedPage({
         </div>
 
         <div>
-          <label htmlFor="nacionalidad">Nacionalidad</label>
-          <input id="nacionalidad" name="nacionalidad" />
+          <label htmlFor="nacionalidad_codigo">Nacionalidad</label>
+          <select id="nacionalidad_codigo" name="nacionalidad_codigo" defaultValue="">
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {paises?.map((p) => (
+              <option key={p.codigo} value={p.codigo}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
-          <label htmlFor="pais">País</label>
-          <input id="pais" name="pais" />
+          <label htmlFor="pais_codigo">País (residencia)</label>
+          <select id="pais_codigo" name="pais_codigo" defaultValue="">
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {paises?.map((p) => (
+              <option key={p.codigo} value={p.codigo}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="col-span-2">
