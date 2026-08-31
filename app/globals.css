@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  border-color: theme("colors.line");
+}
+
+input,
+select {
+  @apply w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-slate focus:ring-1 focus:ring-slate;
+}
+
+label {
+  @apply mb-1 block text-xs font-medium text-ink/60;
+}
+
+button {
+  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate;
+}
