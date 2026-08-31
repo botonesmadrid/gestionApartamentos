@@ -15,6 +15,11 @@ export default async function NuevaReservaPage({
     .select("codigo, nombre")
     .order("nombre");
 
+  const { data: formasPago } = await supabase
+    .from("formas_pago")
+    .select("codigo, descripcion")
+    .order("descripcion");
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Link
@@ -86,8 +91,17 @@ export default async function NuevaReservaPage({
           <input id="codigo_reserva" name="codigo_reserva" />
         </div>
         <div>
-          <label htmlFor="forma_pago">Forma de pago</label>
-          <input id="forma_pago" name="forma_pago" />
+          <label htmlFor="forma_pago_codigo">Forma de pago</label>
+          <select id="forma_pago_codigo" name="forma_pago_codigo" defaultValue="">
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {formasPago?.map((f) => (
+              <option key={f.codigo} value={f.codigo}>
+                {f.descripcion}
+              </option>
+            ))}
+          </select>
         </div>
 
         <button
