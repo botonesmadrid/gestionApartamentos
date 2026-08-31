@@ -41,6 +41,7 @@ type Reserva = {
   importe: number | null;
   comision_portal: number | null;
   codigo_reserva: string | null;
+  telefono: string | null;
   fecha_pago: string | null;
   duracion: number | null;
   apartamentos: { apartamento: string; piso: string | null } [] | null;
@@ -126,7 +127,7 @@ export default function EntradasView({
       .from("reservas")
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
-         importe, comision_portal, codigo_reserva, fecha_pago, duracion,
+         importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion,
          apartamentos!inner(apartamento, piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
@@ -368,6 +369,7 @@ export default function EntradasView({
             valor={detalleReserva.comision_portal != null ? `${detalleReserva.comision_portal} €` : "—"}
           />
           <FilaDetalle etiqueta="Código de reserva" valor={detalleReserva.codigo_reserva} />
+          <FilaDetalle etiqueta="Teléfono" valor={detalleReserva.telefono} />
           <FilaDetalle etiqueta="Origen" valor={detalleReserva.origenes_reserva?.[0]?.nombre} />
           <FilaDetalle etiqueta="Forma de pago" valor={detalleReserva.formas_pago?.[0]?.descripcion} />
           <FilaDetalle etiqueta="Fecha de pago" valor={formatoFecha(detalleReserva.fecha_pago)} />
