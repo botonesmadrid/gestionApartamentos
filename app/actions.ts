@@ -107,11 +107,11 @@ export async function crearHuesped(
     correo: str(formData.get("correo")),
     tipo_documento_codigo: str(formData.get("tipo_documento_codigo")),
     rol: str(formData.get("rol")),
-    nacionalidad: str(formData.get("nacionalidad")),
+    nacionalidad_codigo: str(formData.get("nacionalidad_codigo")),
+    pais_codigo: str(formData.get("pais_codigo")),
     sexo: str(formData.get("sexo")),
     parentesco: str(formData.get("parentesco")),
     codigo_municipio: str(formData.get("codigo_municipio")),
-    pais: str(formData.get("pais")),
   });
 
   if (error) throw new Error(error.message);
