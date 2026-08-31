@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { crearHuesped } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
+import MunicipioSelect from "./MunicipioSelect";
 
 export default async function NuevoHuespedPage({
   params,
@@ -29,6 +30,16 @@ export default async function NuevoHuespedPage({
     .from("parentescos")
     .select("codigo, descripcion")
     .order("descripcion");
+
+  const { data: provincias } = await supabase
+    .from("provincias")
+    .select("codigo, nombre")
+    .order("nombre");
+
+  const { data: municipios } = await supabase
+    .from("municipios")
+    .select("codigo, nombre, provincia_codigo")
+    .neq("codigo", "NOESP");
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -132,14 +143,7 @@ export default async function NuevoHuespedPage({
           <label htmlFor="codigo_postal">Código postal</label>
           <input id="codigo_postal" name="codigo_postal" />
         </div>
-        <div>
-          <label htmlFor="nombre_municipio">Municipio</label>
-          <input id="nombre_municipio" name="nombre_municipio" />
-        </div>
-        <div>
-          <label htmlFor="codigo_municipio">Código de municipio</label>
-          <input id="codigo_municipio" name="codigo_municipio" />
-        </div>
+        <MunicipioSelect provincias={provincias ?? []} municipios={municipios ?? []} />
 
         <div>
           <label htmlFor="telefono">Teléfono</label>
