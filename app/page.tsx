@@ -21,6 +21,9 @@ export default async function Home() {
           <p className="mt-1 text-sm text-ink/60">{user?.email}</p>
         </div>
         <form action={cerrarSesion} className="flex items-center gap-4">
+          <Link href="/entradas" className="text-sm text-ink/50 hover:text-ink">
+            Entradas
+          </Link>
           <Link href="/admin/maestros" className="text-sm text-ink/50 hover:text-ink">
             Maestros
           </Link>
