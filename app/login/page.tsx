@@ -55,7 +55,7 @@ export default function LoginPage() {
     setRecuperar("enviando");
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/cuenta/nueva-password`,
+      redirectTo: `${window.location.origin}/cuenta/nueva-password`,
     });
     setRecuperar(error ? "error" : "enviado");
   }
