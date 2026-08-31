@@ -57,6 +57,7 @@ export const MAESTROS: MaestroConfig[] = [
     pkGenerada: true,
     ordenarPor: "nombre",
     campos: [
+      { key: "codigo", etiqueta: "Código", tipo: "text" },
       { key: "nombre", etiqueta: "Nombre", tipo: "text", requerido: true },
       { key: "email", etiqueta: "Email", tipo: "text" },
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },
