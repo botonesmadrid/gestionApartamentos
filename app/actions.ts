@@ -73,7 +73,7 @@ export async function crearReserva(apartamentoId: string, formData: FormData) {
     importe: num(formData.get("importe")),
     comision_portal: num(formData.get("comision_portal")),
     codigo_reserva: str(formData.get("codigo_reserva")),
-    origen_reserva: str(formData.get("origen_reserva")),
+    origen_codigo: str(formData.get("origen_codigo")),
     fecha_pago: str(formData.get("fecha_pago")),
     forma_pago: str(formData.get("forma_pago")),
   });
@@ -105,7 +105,7 @@ export async function crearHuesped(
     nombre_municipio: str(formData.get("nombre_municipio")),
     telefono: str(formData.get("telefono")),
     correo: str(formData.get("correo")),
-    tipo_documento: str(formData.get("tipo_documento")),
+    tipo_documento_codigo: str(formData.get("tipo_documento_codigo")),
     rol: str(formData.get("rol")),
     nacionalidad: str(formData.get("nacionalidad")),
     sexo: str(formData.get("sexo")),
