@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -36,9 +37,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       {/* Menú lateral */}
       <aside className="flex w-16 flex-col items-center border-r border-line bg-white py-6 sm:w-56 sm:items-stretch sm:px-4">
-        <div className="mb-8 hidden px-2 font-display text-lg font-semibold sm:block">
-          Apartamentos
-        </div>
+        <Link href="/" className="mb-8 flex justify-center px-2 sm:justify-start">
+          <Image
+            src="/logo-botones.jpg"
+            alt="Botones"
+            width={40}
+            height={40}
+            className="rounded"
+            priority
+          />
+        </Link>
         <nav className="flex flex-1 flex-col gap-1">
           {ITEMS_LATERAL.map((item) => (
             <Link
