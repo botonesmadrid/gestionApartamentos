@@ -17,13 +17,36 @@ export async function crearApartamento(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const clienteNombre = String(formData.get("cliente") ?? "").trim();
+  let clienteId: string | null = null;
+
+  if (clienteNombre) {
+    const { data: existente } = await supabase
+      .from("clientes")
+      .select("id")
+      .eq("nombre", clienteNombre)
+      .maybeSingle();
+
+    if (existente) {
+      clienteId = existente.id;
+    } else {
+      const { data: nuevo, error: errorCliente } = await supabase
+        .from("clientes")
+        .insert({ nombre: clienteNombre })
+        .select("id")
+        .single();
+      if (errorCliente) throw new Error(errorCliente.message);
+      clienteId = nuevo.id;
+    }
+  }
+
   const { error } = await supabase.from("apartamentos").insert({
-    propietario_id: user.id,
+    gestor_id: user.id,
     apartamento: String(formData.get("apartamento") ?? ""),
     piso: String(formData.get("piso") ?? "") || null,
     codigo_establecimiento: String(formData.get("codigo_establecimiento") ?? "") || null,
     num_registro: String(formData.get("num_registro") ?? "") || null,
-    cliente: String(formData.get("cliente") ?? "") || null,
+    cliente_id: clienteId,
     cru: String(formData.get("cru") ?? "") || null,
   });
 
