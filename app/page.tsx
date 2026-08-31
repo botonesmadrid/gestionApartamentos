@@ -20,7 +20,10 @@ export default async function Home() {
           <h1 className="font-display text-3xl font-semibold">Tus apartamentos</h1>
           <p className="mt-1 text-sm text-ink/60">{user?.email}</p>
         </div>
-        <form action={cerrarSesion}>
+        <form action={cerrarSesion} className="flex items-center gap-4">
+          <Link href="/admin/maestros" className="text-sm text-ink/50 hover:text-ink">
+            Maestros
+          </Link>
           <button className="text-sm text-ink/50 hover:text-ink">Salir</button>
         </form>
       </div>
