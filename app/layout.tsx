@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import AppShell from "./AppShell";
 
 export const metadata: Metadata = {
   title: "Gestión de Apartamentos",
@@ -28,7 +29,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-paper text-ink font-body antialiased">
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
