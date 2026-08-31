@@ -110,7 +110,7 @@ export async function crearHuesped(
     nacionalidad_codigo: str(formData.get("nacionalidad_codigo")),
     pais_codigo: str(formData.get("pais_codigo")),
     sexo_codigo: str(formData.get("sexo_codigo")),
-    parentesco: str(formData.get("parentesco")),
+    parentesco_codigo: str(formData.get("parentesco_codigo")),
     codigo_municipio: str(formData.get("codigo_municipio")),
   });
 
