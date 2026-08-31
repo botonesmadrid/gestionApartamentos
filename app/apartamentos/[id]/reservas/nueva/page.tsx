@@ -91,6 +91,10 @@ export default async function NuevaReservaPage({
           <input id="codigo_reserva" name="codigo_reserva" />
         </div>
         <div>
+          <label htmlFor="telefono">Teléfono</label>
+          <input id="telefono" name="telefono" type="tel" />
+        </div>
+        <div>
           <label htmlFor="forma_pago_codigo">Forma de pago</label>
           <select id="forma_pago_codigo" name="forma_pago_codigo" defaultValue="">
             <option value="" disabled>
