@@ -23,10 +23,10 @@ type Huesped = {
   rol: string | null;
   sexo_codigo: string | null;
   parentesco_codigo: string | null;
-  paises: { nombre: string }[] | null;
-  tipos_documento: { descripcion: string }[] | null;
-  sexos: { descripcion: string }[] | null;
-  parentescos: { descripcion: string }[] | null;
+  nacionalidad: { nombre: string } | null;
+  tipos_documento: { descripcion: string } | null;
+  sexos: { descripcion: string } | null;
+  parentescos: { descripcion: string } | null;
 };
 
 type Reserva = {
@@ -44,9 +44,9 @@ type Reserva = {
   telefono: string | null;
   fecha_pago: string | null;
   duracion: number | null;
-  apartamentos: { apartamento: string; piso: string | null } [] | null;
-  origenes_reserva: { nombre: string }[] | null;
-  formas_pago: { descripcion: string }[] | null;
+  apartamentos: { apartamento: string; piso: string | null } | null;
+  origenes_reserva: { nombre: string } | null;
+  formas_pago: { descripcion: string } | null;
   huespedes: Huesped[] | null;
 };
 
@@ -133,7 +133,7 @@ export default function EntradasView({
          formas_pago(descripcion),
          huespedes(id, nombre, apellido1, apellido2, telefono, correo, fecha_nacimiento,
            soporte_documento, numero_documento, direccion, codigo_postal, nombre_municipio,
-           tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, paises(nombre),
+           tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
            tipos_documento(descripcion), sexos(descripcion), parentescos(descripcion))`
       )
       .gte("fecha_entrada", desde)
@@ -270,8 +270,8 @@ export default function EntradasView({
           </p>
         ) : (
           reservas.map((r) => {
-            const apartamento = r.apartamentos?.[0];
-            const origen = r.origenes_reserva?.[0]?.nombre;
+            const apartamento = r.apartamentos;
+            const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
             return (
               <div key={r.id} className="rounded-lg border border-line bg-white">
@@ -325,7 +325,7 @@ export default function EntradasView({
                             <div className="min-w-[160px] font-medium">
                               {h.nombre} {h.apellido1 ?? ""} {h.apellido2 ?? ""}
                             </div>
-                            <div className="text-ink/60">{h.paises?.[0]?.nombre ?? "—"}</div>
+                            <div className="text-ink/60">{h.nacionalidad?.nombre ?? "—"}</div>
                             <div className="text-ink/60">{h.telefono ?? "—"}</div>
                             <div className="text-ink/60">{h.correo ?? "—"}</div>
                             <button
@@ -351,8 +351,8 @@ export default function EntradasView({
 
       {detalleReserva && (
         <ModalDetalle titulo="Detalle de la entrada" onCerrar={() => setDetalleReserva(null)}>
-          <FilaDetalle etiqueta="Apartamento" valor={detalleReserva.apartamentos?.[0]?.apartamento} />
-          <FilaDetalle etiqueta="Piso" valor={detalleReserva.apartamentos?.[0]?.piso} />
+          <FilaDetalle etiqueta="Apartamento" valor={detalleReserva.apartamentos?.apartamento} />
+          <FilaDetalle etiqueta="Piso" valor={detalleReserva.apartamentos?.piso} />
           <FilaDetalle etiqueta="Fecha de reserva" valor={formatoFecha(detalleReserva.fecha_reserva)} />
           <FilaDetalle etiqueta="Entrada" valor={formatoFecha(detalleReserva.fecha_entrada)} />
           <FilaDetalle etiqueta="Salida" valor={formatoFecha(detalleReserva.fecha_salida)} />
@@ -370,8 +370,8 @@ export default function EntradasView({
           />
           <FilaDetalle etiqueta="Código de reserva" valor={detalleReserva.codigo_reserva} />
           <FilaDetalle etiqueta="Teléfono" valor={detalleReserva.telefono} />
-          <FilaDetalle etiqueta="Origen" valor={detalleReserva.origenes_reserva?.[0]?.nombre} />
-          <FilaDetalle etiqueta="Forma de pago" valor={detalleReserva.formas_pago?.[0]?.descripcion} />
+          <FilaDetalle etiqueta="Origen" valor={detalleReserva.origenes_reserva?.nombre} />
+          <FilaDetalle etiqueta="Forma de pago" valor={detalleReserva.formas_pago?.descripcion} />
           <FilaDetalle etiqueta="Fecha de pago" valor={formatoFecha(detalleReserva.fecha_pago)} />
         </ModalDetalle>
       )}
@@ -384,9 +384,9 @@ export default function EntradasView({
               detalleHuesped.apellido2 ?? ""
             }`}
           />
-          <FilaDetalle etiqueta="Nacionalidad" valor={detalleHuesped.paises?.[0]?.nombre} />
+          <FilaDetalle etiqueta="Nacionalidad" valor={detalleHuesped.nacionalidad?.nombre} />
           <FilaDetalle etiqueta="Fecha de nacimiento" valor={formatoFecha(detalleHuesped.fecha_nacimiento)} />
-          <FilaDetalle etiqueta="Tipo de documento" valor={detalleHuesped.tipos_documento?.[0]?.descripcion} />
+          <FilaDetalle etiqueta="Tipo de documento" valor={detalleHuesped.tipos_documento?.descripcion} />
           <FilaDetalle etiqueta="Nº documento" valor={detalleHuesped.numero_documento} />
           <FilaDetalle etiqueta="Soporte del documento" valor={detalleHuesped.soporte_documento} />
           <FilaDetalle etiqueta="Dirección" valor={detalleHuesped.direccion} />
@@ -395,8 +395,8 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Teléfono" valor={detalleHuesped.telefono} />
           <FilaDetalle etiqueta="Correo" valor={detalleHuesped.correo} />
           <FilaDetalle etiqueta="Rol" valor={detalleHuesped.rol} />
-          <FilaDetalle etiqueta="Sexo" valor={detalleHuesped.sexos?.[0]?.descripcion} />
-          <FilaDetalle etiqueta="Parentesco" valor={detalleHuesped.parentescos?.[0]?.descripcion} />
+          <FilaDetalle etiqueta="Sexo" valor={detalleHuesped.sexos?.descripcion} />
+          <FilaDetalle etiqueta="Parentesco" valor={detalleHuesped.parentescos?.descripcion} />
         </ModalDetalle>
       )}
     </div>
