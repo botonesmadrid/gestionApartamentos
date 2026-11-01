@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { EditarHuesped, EditarReserva } from "./Edicion";
 
 type Apartamento = { id: string; piso: string };
 type Cliente = { id: string; nombre: string };
@@ -27,6 +28,10 @@ type Huesped = {
   rol: string | null;
   sexo_codigo: string | null;
   parentesco_codigo: string | null;
+  nacionalidad_codigo: string | null;
+  pais_codigo: string | null;
+  codigo_municipio_ref: string | null;
+  motivo_viaje: string | null;
   nacionalidad: { nombre: string } | null;
   tipos_documento: { descripcion: string } | null;
   sexos: { descripcion: string } | null;
@@ -60,6 +65,8 @@ type Reserva = {
   canal: string | null;
   importe_neto: number | null;
   importe_pendiente: boolean;
+  origen_codigo: string | null;
+  forma_pago_codigo: string | null;
   apartamentos: { piso: string } | null;
   origenes_reserva: { nombre: string } | null;
   formas_pago: { descripcion: string } | null;
@@ -115,10 +122,19 @@ function euros(n: number) {
 }
 
 // Burbuja de acción pendiente: falta el importe con comisión del portal.
-function ImportePendiente({ reserva, onGuardado }: { reserva: Reserva; onGuardado: () => void }) {
+// Con `cambiar`, en vez de la burbuja muestra un enlace "Cambiar" para corregir un importe ya puesto.
+function ImportePendiente({
+  reserva,
+  onGuardado,
+  cambiar,
+}: {
+  reserva: Reserva;
+  onGuardado: () => void;
+  cambiar?: boolean;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [abierto, setAbierto] = useState(false);
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState(cambiar && reserva.importe != null ? String(reserva.importe) : "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
@@ -142,7 +158,16 @@ function ImportePendiente({ reserva, onGuardado }: { reserva: Reserva; onGuardad
       return;
     }
     window.dispatchEvent(new Event("pendientes-cambiados"));
+    setAbierto(false);
     onGuardado();
+  }
+
+  if (!abierto && cambiar) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)} className="text-xs text-ink/50 underline hover:text-ink">
+        Cambiar
+      </button>
+    );
   }
 
   if (!abierto) {
@@ -459,9 +484,19 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
   return (
     <div>
       <ul className="space-y-2">
-        <li className="flex items-center justify-between gap-3">
-          <span>{reserva.importe_pendiente ? "○" : "✓"} Importe con comisión</span>
-          <span className="text-xs text-ink/50">{reserva.importe_pendiente ? "Pendiente (en el listado)" : "Hecho"}</span>
+        <li className="flex flex-wrap items-center justify-between gap-3">
+          <span>
+            {reserva.importe_pendiente ? "○" : "✓"} Importe con comisión
+            {!reserva.importe_pendiente && reserva.importe != null && (
+              <span className="ml-2 text-xs text-ink/50">
+                {euros(reserva.importe)}
+                {reserva.comision_portal != null && ` · comisión ${euros(reserva.comision_portal)}`}
+              </span>
+            )}
+          </span>
+          {!cancelada && (
+            <ImportePendiente reserva={reserva} onGuardado={onCambio} cambiar={!reserva.importe_pendiente} />
+          )}
         </li>
         <li className="flex flex-wrap items-center justify-between gap-3">
           <span>
@@ -596,6 +631,12 @@ export default function EntradasView({
   const [pasosAbiertos, setPasosAbiertos] = useState<string | null>(null);
   const [detalleReserva, setDetalleReserva] = useState<Reserva | null>(null);
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
+  const [editando, setEditando] = useState(false);
+  const cerrarDetalle = () => {
+    setDetalleReserva(null);
+    setDetalleHuesped(null);
+    setEditando(false);
+  };
 
   function elegirRango(r: Rango) {
     setRango(r);
@@ -616,7 +657,7 @@ export default function EntradasView({
       .from("reservas")
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
-         importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion,
+         importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion, origen_codigo, forma_pago_codigo,
          estado, canal, importe_neto, importe_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
          num_huespedes, formulario_token,
@@ -625,7 +666,8 @@ export default function EntradasView({
          formas_pago(descripcion),
          huespedes(id, nombre, apellido1, apellido2, telefono, correo, fecha_nacimiento,
            soporte_documento, numero_documento, direccion, codigo_postal, nombre_municipio,
-           tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
+           tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, nacionalidad_codigo, pais_codigo,
+           codigo_municipio_ref, motivo_viaje, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
            tipos_documento(descripcion), sexos(descripcion), parentescos(descripcion))`
       )
       .order("fecha_entrada", { ascending: false });
@@ -934,6 +976,14 @@ export default function EntradasView({
                     ) : (
                       <p className="text-sm text-ink/40">Sin huéspedes registrados.</p>
                     )}
+                    {r.fase !== "cancelada" && (
+                      <a
+                        href={`/apartamentos/${r.apartamento_id}/reservas/${r.id}/huespedes/nuevo`}
+                        className="mt-2 inline-block text-xs text-ink/60 underline hover:text-ink"
+                      >
+                        + Añadir huésped a mano
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -943,7 +993,23 @@ export default function EntradasView({
       </div>
 
       {detalleReserva && (
-        <ModalDetalle titulo="Detalle de la entrada" onCerrar={() => setDetalleReserva(null)}>
+        <ModalDetalle
+          titulo={editando ? "Editar entrada" : "Detalle de la entrada"}
+          onCerrar={cerrarDetalle}
+          onEditar={editando ? undefined : () => setEditando(true)}
+        >
+          {editando ? (
+            <EditarReserva
+              reserva={detalleReserva}
+              apartamentos={apartamentos}
+              onCancelar={() => setEditando(false)}
+              onGuardado={() => {
+                cerrarDetalle();
+                cargar();
+              }}
+            />
+          ) : (
+          <dl className="space-y-2">
           <FilaDetalle etiqueta="Piso" valor={detalleReserva.apartamentos?.piso} />
           <FilaDetalle etiqueta="Fecha de reserva" valor={formatoFecha(detalleReserva.fecha_reserva)} />
           <FilaDetalle etiqueta="Entrada" valor={formatoFecha(detalleReserva.fecha_entrada)} />
@@ -968,11 +1034,32 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Importe neto (portal)" valor={detalleReserva.importe_neto != null ? euros(detalleReserva.importe_neto) : null} />
           <FilaDetalle etiqueta="Estado" valor={<EtiquetaFase fase={detalleReserva.fase} />} />
           <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
+          </dl>
+          )}
         </ModalDetalle>
       )}
 
       {detalleHuesped && (
-        <ModalDetalle titulo="Detalle del huésped" onCerrar={() => setDetalleHuesped(null)}>
+        <ModalDetalle
+          titulo={editando ? "Editar huésped" : "Detalle del huésped"}
+          onCerrar={cerrarDetalle}
+          onEditar={editando ? undefined : () => setEditando(true)}
+        >
+          {editando ? (
+            <EditarHuesped
+              huesped={detalleHuesped}
+              onCancelar={() => setEditando(false)}
+              onGuardado={() => {
+                cerrarDetalle();
+                cargar();
+              }}
+              onBorrado={() => {
+                cerrarDetalle();
+                cargar();
+              }}
+            />
+          ) : (
+          <dl className="space-y-2">
           <FilaDetalle
             etiqueta="Nombre completo"
             valor={`${detalleHuesped.nombre} ${detalleHuesped.apellido1 ?? ""} ${
@@ -992,6 +1079,9 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Rol" valor={detalleHuesped.rol} />
           <FilaDetalle etiqueta="Sexo" valor={detalleHuesped.sexos?.descripcion} />
           <FilaDetalle etiqueta="Parentesco" valor={detalleHuesped.parentescos?.descripcion} />
+          <FilaDetalle etiqueta="Motivo del viaje" valor={detalleHuesped.motivo_viaje} />
+          </dl>
+          )}
         </ModalDetalle>
       )}
     </div>
@@ -1001,22 +1091,38 @@ export default function EntradasView({
 function ModalDetalle({
   titulo,
   onCerrar,
+  onEditar,
   children,
 }: {
   titulo: string;
   onCerrar: () => void;
+  onEditar?: () => void;
   children: React.ReactNode;
 }) {
+  // Pulsar fuera cierra solo en modo consulta (al editar se perderían los cambios).
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4">
-      <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4" onClick={onEditar ? onCerrar : undefined}>
+      <div
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
+      >
+        <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-xl font-semibold">{titulo}</h2>
-          <button onClick={onCerrar} className="text-ink/50 hover:text-ink">
-            Cerrar
-          </button>
+          <div className="flex items-center gap-3">
+            {onEditar && (
+              <button onClick={onEditar} className="rounded-md border border-line px-3 py-1 text-sm text-ink/70 hover:text-ink">
+                Editar
+              </button>
+            )}
+            <button onClick={onCerrar} className="text-sm text-ink/50 hover:text-ink">
+              Cerrar
+            </button>
+          </div>
         </div>
-        <dl className="mt-4 space-y-2 text-sm">{children}</dl>
+        <div className="mt-4 text-sm">{children}</div>
       </div>
     </div>
   );
