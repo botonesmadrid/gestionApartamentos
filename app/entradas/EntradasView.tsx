@@ -48,6 +48,10 @@ type Reserva = {
   telefono: string | null;
   fecha_pago: string | null;
   duracion: number | null;
+  estado: "confirmada" | "cancelada";
+  canal: string | null;
+  importe_neto: number | null;
+  importe_pendiente: boolean;
   apartamentos: { piso: string } | null;
   origenes_reserva: { nombre: string } | null;
   formas_pago: { descripcion: string } | null;
@@ -76,6 +80,97 @@ function ultimoDiaMes() {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
 
+function euros(n: number) {
+  return Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+}
+
+// Burbuja de acción pendiente: falta el importe con comisión del portal.
+function ImportePendiente({ reserva, onGuardado }: { reserva: Reserva; onGuardado: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [abierto, setAbierto] = useState(false);
+  const [valor, setValor] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+
+  const total = valor === "" ? null : Number(valor.replace(",", "."));
+  const neto = reserva.importe_neto;
+  const comision = total != null && neto != null ? total - neto : null;
+  const pct = comision != null && total ? (comision / total) * 100 : null;
+  const valido = total != null && Number.isFinite(total) && total > 0 && (neto == null || total >= neto);
+
+  async function guardar() {
+    if (!valido) return;
+    setGuardando(true);
+    setError("");
+    const { error: err } = await supabase
+      .from("reservas")
+      .update({ importe: total, importe_pendiente: false })
+      .eq("id", reserva.id);
+    setGuardando(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    window.dispatchEvent(new Event("pendientes-cambiados"));
+    onGuardado();
+  }
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200"
+        title="Introducir el importe total con la comisión del portal"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        Falta importe con comisión
+        {neto != null && <span className="font-normal text-amber-800/80">· neto {euros(neto)}</span>}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        type="text"
+        inputMode="decimal"
+        autoFocus
+        aria-label="Importe con comisión"
+        placeholder="Importe con comisión"
+        className="!w-36"
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") guardar();
+          if (e.key === "Escape") setAbierto(false);
+        }}
+      />
+      <button
+        type="button"
+        disabled={!valido || guardando}
+        onClick={guardar}
+        className="rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-40"
+      >
+        {guardando ? "Guardando…" : "Guardar"}
+      </button>
+      <button type="button" onClick={() => setAbierto(false)} className="text-xs text-ink/50 hover:text-ink">
+        Cancelar
+      </button>
+      {comision != null && valido && (
+        <span className={`text-xs ${pct != null && (pct < 10 || pct > 30) ? "text-clay" : "text-ink/50"}`}>
+          Comisión {euros(comision)} ({pct!.toFixed(1)} %)
+          {pct != null && (pct < 10 || pct > 30) ? " · revisa el importe" : ""}
+        </span>
+      )}
+      {total != null && neto != null && total < neto && (
+        <span className="text-xs text-clay">No puede ser menor que el neto ({euros(neto)}).</span>
+      )}
+      {error && <span className="text-xs text-clay">{error}</span>}
+    </div>
+  );
+}
+
 function formatoFecha(iso: string | null) {
   if (!iso) return "—";
   const [a, m, d] = iso.split("-");
@@ -102,8 +197,15 @@ export default function EntradasView({
   const [origen, setOrigen] = useState("");
   const [nochesMin, setNochesMin] = useState("");
   const [nochesMax, setNochesMax] = useState("");
+  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [verCanceladas, setVerCanceladas] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
+
+  // El contador del menú lateral enlaza a "/?pendientes=1".
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("pendientes") === "1") setSoloPendientes(true);
+  }, []);
 
   // Espera a que se deje de escribir antes de lanzar la consulta.
   useEffect(() => {
@@ -138,6 +240,7 @@ export default function EntradasView({
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion,
+         estado, canal, importe_neto, importe_pendiente,
          apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
@@ -146,9 +249,15 @@ export default function EntradasView({
            tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
            tipos_documento(descripcion), sexos(descripcion), parentescos(descripcion))`
       )
-      .gte("fecha_entrada", desde)
-      .lte("fecha_entrada", hasta)
       .order("fecha_entrada", { ascending: false });
+
+    // "Solo pendientes" muestra todas las acciones pendientes, sin limitar por fechas.
+    if (soloPendientes) {
+      query = query.eq("importe_pendiente", true).eq("estado", "confirmada");
+    } else {
+      query = query.gte("fecha_entrada", desde).lte("fecha_entrada", hasta);
+      if (!verCanceladas) query = query.eq("estado", "confirmada");
+    }
 
     if (apartamentoId) query = query.eq("apartamento_id", apartamentoId);
     if (clienteId) query = query.eq("apartamentos.cliente_id", clienteId);
@@ -181,7 +290,7 @@ export default function EntradasView({
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada]);
+  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada, soloPendientes, verCanceladas]);
 
   return (
     <div>
@@ -319,6 +428,31 @@ export default function EntradasView({
         </div>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+        <label className="!mb-0 flex items-center gap-2 !text-sm !font-normal !text-ink/70">
+          <input
+            type="checkbox"
+            className="!w-auto"
+            checked={soloPendientes}
+            onChange={(e) => setSoloPendientes(e.target.checked)}
+          />
+          Solo con acción pendiente
+        </label>
+        <label className="!mb-0 flex items-center gap-2 !text-sm !font-normal !text-ink/70">
+          <input
+            type="checkbox"
+            className="!w-auto"
+            checked={verCanceladas}
+            disabled={soloPendientes}
+            onChange={(e) => setVerCanceladas(e.target.checked)}
+          />
+          Mostrar canceladas
+        </label>
+        {soloPendientes && (
+          <span className="text-xs text-ink/50">Se muestran todas las fechas.</span>
+        )}
+      </div>
+
       {error && <p className="mt-3 text-sm text-clay">{error}</p>}
 
       {/* Listado */}
@@ -335,7 +469,10 @@ export default function EntradasView({
             const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
             return (
-              <div key={r.id} className="rounded-lg border border-line bg-white">
+              <div
+                key={r.id}
+                className={`rounded-lg border border-line bg-white ${r.estado === "cancelada" ? "opacity-60" : ""}`}
+              >
                 <div className="flex flex-wrap items-center gap-4 px-4 py-3">
                   <div className="min-w-[180px]">
                     <div className="text-sm font-medium">
@@ -352,7 +489,17 @@ export default function EntradasView({
                     <div className="text-xs text-ink/50">{origen ?? "Sin origen"}</div>
                   </div>
                   <div className="text-sm">
-                    {r.importe != null ? `${r.importe} €` : "—"}
+                    {r.estado === "cancelada" ? (
+                      <span className="rounded-full bg-clay/10 px-2 py-0.5 text-xs font-medium text-clay">
+                        Cancelada
+                      </span>
+                    ) : r.importe_pendiente ? (
+                      <ImportePendiente reserva={r} onGuardado={cargar} />
+                    ) : r.importe != null ? (
+                      `${euros(r.importe)}`
+                    ) : (
+                      "—"
+                    )}
                   </div>
 
                   <div className="ml-auto flex items-center gap-3 text-sm">
@@ -432,6 +579,9 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Origen" valor={detalleReserva.origenes_reserva?.nombre} />
           <FilaDetalle etiqueta="Forma de pago" valor={detalleReserva.formas_pago?.descripcion} />
           <FilaDetalle etiqueta="Fecha de pago" valor={formatoFecha(detalleReserva.fecha_pago)} />
+          <FilaDetalle etiqueta="Importe neto (portal)" valor={detalleReserva.importe_neto != null ? euros(detalleReserva.importe_neto) : null} />
+          <FilaDetalle etiqueta="Estado" valor={detalleReserva.estado === "cancelada" ? "Cancelada" : "Confirmada"} />
+          <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
         </ModalDetalle>
       )}
 

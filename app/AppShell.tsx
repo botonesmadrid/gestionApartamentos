@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password"];
@@ -16,9 +17,31 @@ const ITEMS_LATERAL = [
 // Menú superior (en móvil pasa a barra inferior): solo Entradas
 const ITEMS_SUPERIOR = [{ href: "/", etiqueta: "Entradas", icono: IconoEntradas }];
 
+// Nº de reservas confirmadas a las que les falta el importe con comisión.
+function usePendientes(activo: boolean, pathname: string | null) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!activo) return;
+    const supabase = createClient();
+    async function contar() {
+      const { count } = await supabase
+        .from("reservas")
+        .select("id", { count: "exact", head: true })
+        .eq("importe_pendiente", true)
+        .eq("estado", "confirmada");
+      setN(count ?? 0);
+    }
+    contar();
+    window.addEventListener("pendientes-cambiados", contar);
+    return () => window.removeEventListener("pendientes-cambiados", contar);
+  }, [activo, pathname]);
+  return n;
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const ocultarNav = RUTAS_SIN_NAV.some((r) => pathname?.startsWith(r));
+  const pendientes = usePendientes(!ocultarNav, pathname);
 
   if (ocultarNav) return <>{children}</>;
 
@@ -63,6 +86,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="hidden sm:inline">{item.etiqueta}</span>
             </Link>
           ))}
+          {pendientes > 0 && (
+            <Link
+              href="/?pendientes=1"
+              onClick={() => {
+                if (pathname === "/") window.location.href = "/?pendientes=1";
+              }}
+              className="mt-1 flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-xs text-amber-900 hover:bg-amber-50 sm:justify-start"
+              title={`${pendientes} reservas sin importe con comisión`}
+            >
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white">
+                {pendientes}
+              </span>
+              <span className="hidden sm:inline">Pendientes</span>
+            </Link>
+          )}
         </nav>
         <button
           onClick={salir}

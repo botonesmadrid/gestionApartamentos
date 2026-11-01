@@ -37,6 +37,7 @@ export const MAESTROS: MaestroConfig[] = [
     ordenarPor: "piso",
     campos: [
       { key: "piso", etiqueta: "Piso", tipo: "text", requerido: true },
+      { key: "nombre_en_canal", etiqueta: "Nombre en el channel manager", tipo: "text" },
       { key: "codigo_establecimiento", etiqueta: "Código establecimiento", tipo: "text" },
       { key: "num_registro", etiqueta: "Núm. registro", tipo: "text" },
       {
