@@ -26,6 +26,7 @@ const SIN_ORIGEN = "__sin_origen__";
 
 type Huesped = {
   id: string;
+  created_at: string;
   nombre: string;
   apellido1: string | null;
   apellido2: string | null;
@@ -75,6 +76,11 @@ type Reserva = {
   checkin_at: string | null;
   num_huespedes: number | null;
   formulario_token: string;
+  titular_huesped_id: string | null;
+  contrato_generado_at: string | null;
+  contrato_pdf_id: string | null;
+  contrato_carpeta_id: string | null;
+  contrato_firmado_pdf_id: string | null;
   canal: string | null;
   importe_neto: number | null;
   importe_pendiente: boolean;
@@ -235,6 +241,125 @@ function ImportePendiente({
         <span className="text-xs text-clay">No puede ser menor que el neto ({euros(neto)}).</span>
       )}
       {error && <span className="text-xs text-clay">{error}</span>}
+    </div>
+  );
+}
+
+// Titular de la reserva (quien firma el contrato): el marcado en la app; si no, el huésped
+// cuyo nombre coincide con el de la reserva (el que trae el aviso del canal); si no, el primero.
+const normalizar = (s: string | null | undefined) =>
+  (s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+function titularDe(r: Reserva): Huesped | undefined {
+  const hs = [...(r.huespedes ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const marcado = hs.find((h) => h.id === r.titular_huesped_id);
+  if (marcado) return marcado;
+  const nombreReserva = normalizar([r.nombre, r.apellido1].filter(Boolean).join(" "));
+  const porNombre = hs.find((h) => {
+    const n = normalizar(h.nombre);
+    const a = normalizar(h.apellido1);
+    return n && nombreReserva.includes(n) && (!a || nombreReserva.includes(a) || !r.apellido1);
+  });
+  return porNombre ?? hs[0];
+}
+
+// Paso "Contrato": generar el PDF en Drive (función generar-contrato), enlaces y regenerar.
+function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [generando, setGenerando] = useState(false);
+  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const titular = titularDe(reserva);
+
+  async function generar(regenerar: boolean) {
+    if (regenerar && !window.confirm("¿Volver a generar el contrato? El PDF anterior irá a la papelera de Drive.")) return;
+    setGenerando(true);
+    setMensaje(null);
+    const { data, error } = await supabase.functions.invoke("generar-contrato", {
+      body: { reserva_id: reserva.id, regenerar },
+    });
+    setGenerando(false);
+    let r = data as any;
+    if (error) {
+      try {
+        r = await (error as any).context?.json();
+      } catch {}
+    }
+    if (!r?.ok) {
+      const textos: Record<string, string> = {
+        cliente_sin_configurar: "El cliente no tiene carpeta o plantilla de Drive (Maestros → Clientes).",
+        sin_titular: "El titular aún no ha rellenado el formulario de huéspedes.",
+        faltan_datos: `Faltan datos para la plantilla: ${[...(r?.faltan ?? []), ...(r?.desconocidos ?? []).map((d: string) => `${d} (marcador desconocido)`)].join(", ")}.`,
+        ya_generado: "Ya hay un contrato generado.",
+        google: `Error de Google Drive/Docs: ${r?.detalle ?? ""}`,
+      };
+      setMensaje({ tipo: "error", texto: textos[r?.error] ?? "No se ha podido generar el contrato." });
+      return;
+    }
+    setMensaje({ tipo: "ok", texto: "Contrato generado en Drive." });
+    onCambio();
+  }
+
+  const pdfUrl = reserva.contrato_pdf_id ? `https://drive.google.com/file/d/${reserva.contrato_pdf_id}/view` : null;
+  const carpetaUrl = reserva.contrato_carpeta_id ? `https://drive.google.com/drive/folders/${reserva.contrato_carpeta_id}` : null;
+  const generado = reserva.contrato_generado_at
+    ? new Date(reserva.contrato_generado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
+    : null;
+
+  return (
+    <div className="w-full rounded-md border border-line bg-paper p-2.5">
+      <p className="text-xs text-ink/60">
+        Titular: <span className="font-medium text-ink">{titular ? [titular.nombre, titular.apellido1, titular.apellido2].filter(Boolean).join(" ") : "— (falta el formulario)"}</span>
+        {titular && <span className="text-ink/40"> · se cambia en la lista de huéspedes</span>}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {!reserva.contrato_pdf_id ? (
+          <button
+            type="button"
+            disabled={generando || !titular}
+            onClick={() => generar(false)}
+            className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper disabled:opacity-40"
+          >
+            {generando ? "Generando…" : "Generar contrato PDF"}
+          </button>
+        ) : (
+          <>
+            {pdfUrl && (
+              <a href={pdfUrl} target="_blank" rel="noreferrer" className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper">
+                Ver PDF
+              </a>
+            )}
+            {carpetaUrl && (
+              <a href={carpetaUrl} target="_blank" rel="noreferrer" className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink">
+                Abrir carpeta
+              </a>
+            )}
+            {reserva.contrato_firmado_pdf_id && (
+              <a
+                href={`https://drive.google.com/file/d/${reserva.contrato_firmado_pdf_id}/view`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+              >
+                Ver firmado
+              </a>
+            )}
+            {!reserva.contrato_firmado_at && (
+              <button type="button" disabled={generando} onClick={() => generar(true)} className="text-xs text-ink/50 underline hover:text-ink">
+                {generando ? "Generando…" : "Regenerar"}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs text-ink/50">
+        {reserva.contrato_firmado_pdf_id
+          ? "Firmado: el PDF de HelloSign se ha guardado en la carpeta de la reserva."
+          : generado
+            ? `Generado el ${generado}. Súbelo a HelloSign; al firmarse se guardará y marcará solo.`
+            : "Aún no generado"}
+      </p>
+      {mensaje && (
+        <p className={`mt-1 text-xs ${mensaje.tipo === "ok" ? "text-emerald-700" : "text-clay"}`}>{mensaje.texto}</p>
+      )}
     </div>
   );
 }
@@ -533,7 +658,7 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
           )}
         </li>
         {pasos.map((p) => (
-          <li key={p.campo} className="flex items-center justify-between gap-3">
+          <li key={p.campo} className="flex flex-wrap items-center justify-between gap-3">
             <span>
               {p.hecho ? "✓" : "○"} {p.etiqueta}
               {p.hecho && <span className="ml-2 text-xs text-ink/50">{fechaHora(p.hecho)}</span>}
@@ -559,6 +684,7 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
                   {p.accion}
                 </button>
               ))}
+            {p.campo === "contrato_firmado_at" && !cancelada && <ContratoPdf reserva={reserva} onCambio={onCambio} />}
           </li>
         ))}
       </ul>
@@ -683,11 +809,11 @@ export default function EntradasView({
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion, origen_codigo, forma_pago_codigo,
          estado, canal, importe_neto, importe_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
-         num_huespedes, formulario_token,
+         num_huespedes, formulario_token, titular_huesped_id, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
          apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
-         huespedes(id, nombre, apellido1, apellido2, telefono, correo, fecha_nacimiento,
+         huespedes!huespedes_reserva_id_fkey(id, created_at, nombre, apellido1, apellido2, telefono, correo, fecha_nacimiento,
            soporte_documento, numero_documento, direccion, codigo_postal, nombre_municipio,
            tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, nacionalidad_codigo, pais_codigo,
            codigo_municipio_ref, motivo_viaje, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
@@ -997,6 +1123,19 @@ export default function EntradasView({
                             <div className="text-ink/60">{h.nacionalidad?.nombre ?? "—"}</div>
                             <div className="text-ink/60">{h.telefono ?? "—"}</div>
                             <div className="text-ink/60">{h.correo ?? "—"}</div>
+                            <label className="!mb-0 flex items-center gap-1.5 !text-xs !font-normal !text-ink/70" title="Titular de la reserva: quien firma el contrato">
+                              <input
+                                type="checkbox"
+                                className="!w-auto"
+                                checked={titularDe(r)?.id === h.id}
+                                onChange={async (e) => {
+                                  if (!e.target.checked) return;
+                                  await supabase.from("reservas").update({ titular_huesped_id: h.id }).eq("id", r.id);
+                                  cargar();
+                                }}
+                              />
+                              Titular
+                            </label>
                             <button
                               type="button"
                               onClick={() => setDetalleHuesped(h)}

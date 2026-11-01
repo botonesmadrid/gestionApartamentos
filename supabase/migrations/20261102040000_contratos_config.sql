@@ -14,3 +14,8 @@ update public.clientes set drive_plantilla_id = '1hivFD17uF7UX_zvOkF-tmlf_zbsV3v
   drive_carpeta_id = '12zZ2ITgX-mqSZxenqnly-zhz-R8b46uu' where codigo = 'BA';
 update public.clientes set drive_plantilla_id = '1xDpQsDbzXgLbTYPe5T0yNusprXUXtFK5GX-AqxfCOqw',
   drive_carpeta_id = '1oLRhusMGLnkdJcHbNxYleKWdtj-23nlx' where codigo = 'CM';
+update public.clientes set drive_plantilla_id = '1UfmLz3ZnIRYl7YvBgDpyy7j85Dpbn8qdz6Fy_vy1tCI',
+  drive_carpeta_id = '1K6uEEaHJPutB7wRNAeDkA79oAl_G9JAP' where codigo = 'CH';
+
+-- PDF firmado (correo de HelloSign) guardado en Drive.
+alter table public.reservas add column if not exists contrato_firmado_pdf_id text;
