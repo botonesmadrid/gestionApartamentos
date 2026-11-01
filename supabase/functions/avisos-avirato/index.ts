@@ -72,7 +72,8 @@ Deno.serve(async (req) => {
 
   try {
     const avisos = await procesar(db);
-    const firmas = await procesarFirmas(db);
+    // Un fallo en las firmas (p. ej. Drive) no debe impedir aplicar los avisos de reservas.
+    const firmas = await procesarFirmas(db).catch((e) => ({ error: String(e).slice(0, 300) }));
     return Response.json({ ...avisos, firmas });
   } catch (e) {
     console.error("avisos-avirato:", e);
