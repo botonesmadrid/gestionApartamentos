@@ -37,3 +37,6 @@ check-in completado. Las reservas futuras del Sheet quedan pendientes del contra
   `formulario_registrar`, que comprueban el token, el estado de la reserva y las plazas.
 - Envío desde Entradas → Detalle → Pasos: WhatsApp (mensaje y enlace ya escritos), email (abre el
   correo con el texto) o copiar el enlace. Al usarlos se apunta `formulario_enviado_at`.
+- Email directo: la Edge Function `enviar-formulario` (con la sesión del gestor) lo envía desde
+  `hola@botonesmadrid.com` con la Gmail API (`gmail.send`); queda en *Enviados*. Si falla, el
+  enlace «abrir en mi correo» abre el correo del gestor con el texto preparado.

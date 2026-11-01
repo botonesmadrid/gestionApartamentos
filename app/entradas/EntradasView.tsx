@@ -206,6 +206,10 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
   const supabase = useMemo(() => createClient(), []);
   const [email, setEmail] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [modoEmail, setModoEmail] = useState(false);
+  const [destinatario, setDestinatario] = useState("");
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [resultadoEmail, setResultadoEmail] = useState<"" | "ok" | string>("");
 
   // El email del titular viene en el último aviso del channel manager (si lo trae).
   useEffect(() => {
@@ -215,7 +219,11 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
       .eq("reserva_id", reserva.id)
       .order("recibido_at", { ascending: false })
       .limit(1)
-      .then(({ data }) => setEmail((data?.[0]?.datos as any)?.email ?? null));
+      .then(({ data }) => {
+        const e = (data?.[0]?.datos as any)?.email ?? null;
+        setEmail(e);
+        setDestinatario((d) => d || e || "");
+      });
   }, [reserva.id, supabase]);
 
   const enlace = `${window.location.origin}/f/${reserva.formulario_token}`;
@@ -230,7 +238,7 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
   const telefono = (reserva.telefono ?? "").replace(/\D/g, "");
   const whatsapp = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
   const mailto =
-    `mailto:${email ?? ""}?subject=${encodeURIComponent("Registro de huéspedes / Guest registration · El Botones Madrid")}` +
+    `mailto:${destinatario || email || ""}?subject=${encodeURIComponent("Registro de huéspedes / Guest registration · El Botones Madrid")}` +
     `&body=${encodeURIComponent(mensaje)}`;
 
   const enviado = reserva.formulario_enviado_at
@@ -250,14 +258,13 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
         >
           WhatsApp
         </a>
-        <a
-          href={mailto}
-          onClick={onEnviado}
+        <button
+          type="button"
+          onClick={() => setModoEmail((v) => !v)}
           className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
-          title={email ?? "Sin email del titular: escribe el destinatario"}
         >
           Email
-        </a>
+        </button>
         <button
           type="button"
           onClick={async () => {
@@ -274,6 +281,54 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
           Ver formulario
         </a>
       </div>
+      {modoEmail && (
+        <form
+          className="mt-2 flex flex-wrap items-center gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setEnviandoEmail(true);
+            setResultadoEmail("");
+            const { data, error } = await supabase.functions.invoke("enviar-formulario", {
+              body: { reserva_id: reserva.id, destinatario },
+            });
+            setEnviandoEmail(false);
+            if (error || !(data as any)?.ok) {
+              let motivo = (data as any)?.error ?? "";
+              try {
+                motivo = (await (error as any)?.context?.json())?.error ?? motivo;
+              } catch {}
+              setResultadoEmail(
+                motivo === "email_invalido" ? "Revisa la dirección de email." : "No se ha podido enviar. Prueba con «abrir en mi correo».",
+              );
+              return;
+            }
+            setResultadoEmail("ok");
+            onEnviado();
+          }}
+        >
+          <input
+            type="email"
+            required
+            aria-label="Email del titular"
+            placeholder="email del titular"
+            className="!w-64 !py-1 !text-xs"
+            value={destinatario}
+            onChange={(e) => setDestinatario(e.target.value)}
+          />
+          <button
+            type="submit"
+            disabled={enviandoEmail || !destinatario}
+            className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper disabled:opacity-40"
+          >
+            {enviandoEmail ? "Enviando…" : "Enviar email"}
+          </button>
+          <a href={mailto} onClick={onEnviado} className="text-xs text-ink/50 underline hover:text-ink">
+            o abrir en mi correo
+          </a>
+          {resultadoEmail === "ok" && <span className="text-xs text-emerald-700">✓ Email enviado desde hola@botonesmadrid.com</span>}
+          {resultadoEmail && resultadoEmail !== "ok" && <span className="text-xs text-clay">{resultadoEmail}</span>}
+        </form>
+      )}
       <p className="mt-1.5 text-xs text-ink/50">
         {enviado ? `Enviado el ${enviado}` : "Aún no enviado"}
         {!telefono && " · sin teléfono del titular"}
