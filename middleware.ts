@@ -38,7 +38,8 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/auth") ||
-    request.nextUrl.pathname.startsWith("/cuenta/nueva-password");
+    request.nextUrl.pathname.startsWith("/cuenta/nueva-password") ||
+    request.nextUrl.pathname.startsWith("/f/"); // formulario público de huéspedes
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();
@@ -51,6 +52,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|.*\\.(?:jpg|jpeg|png|svg|webp|ico)$).*)",
   ],
 };

@@ -56,6 +56,7 @@ type Reserva = {
   contrato_firmado_at: string | null;
   checkin_at: string | null;
   num_huespedes: number | null;
+  formulario_token: string;
   canal: string | null;
   importe_neto: number | null;
   importe_pendiente: boolean;
@@ -200,6 +201,88 @@ function ImportePendiente({ reserva, onGuardado }: { reserva: Reserva; onGuardad
   );
 }
 
+// Envío del enlace del formulario al titular: WhatsApp, email o copiar.
+function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [email, setEmail] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  // El email del titular viene en el último aviso del channel manager (si lo trae).
+  useEffect(() => {
+    supabase
+      .from("avisos_canal")
+      .select("datos")
+      .eq("reserva_id", reserva.id)
+      .order("recibido_at", { ascending: false })
+      .limit(1)
+      .then(({ data }) => setEmail((data?.[0]?.datos as any)?.email ?? null));
+  }, [reserva.id, supabase]);
+
+  const enlace = `${window.location.origin}/f/${reserva.formulario_token}`;
+  const nombre = reserva.nombre.split(" ")[0];
+  const n = reserva.num_huespedes;
+  const fechas = `${formatoFecha(reserva.fecha_entrada)} – ${formatoFecha(reserva.fecha_salida)}`;
+  const mensaje =
+    `Hola ${nombre}, para completar tu reserva (${fechas}) necesitamos los datos de ${n ? `los ${n} huéspedes` : "todos los huéspedes"}, ` +
+    `es obligatorio por ley en España. Son 2 minutos por persona:\n${enlace}\n\n` +
+    `Hi ${nombre}, to complete your booking (${fechas}) we need the details of ${n ? `all ${n} guests` : "all guests"}, ` +
+    `as required by Spanish law. It takes 2 minutes per person:\n${enlace}\n\nEl Botones Madrid`;
+  const telefono = (reserva.telefono ?? "").replace(/\D/g, "");
+  const whatsapp = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+  const mailto =
+    `mailto:${email ?? ""}?subject=${encodeURIComponent("Registro de huéspedes / Guest registration · El Botones Madrid")}` +
+    `&body=${encodeURIComponent(mensaje)}`;
+
+  const enviado = reserva.formulario_enviado_at
+    ? new Date(reserva.formulario_enviado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
+    : null;
+
+  return (
+    <div className="w-full rounded-md border border-line bg-paper p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={whatsapp}
+          target="_blank"
+          rel="noreferrer"
+          onClick={onEnviado}
+          className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+          title={telefono ? `Abrir WhatsApp con +${telefono}` : "Sin teléfono: elegirás el contacto en WhatsApp"}
+        >
+          WhatsApp
+        </a>
+        <a
+          href={mailto}
+          onClick={onEnviado}
+          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
+          title={email ?? "Sin email del titular: escribe el destinatario"}
+        >
+          Email
+        </a>
+        <button
+          type="button"
+          onClick={async () => {
+            await navigator.clipboard.writeText(enlace);
+            setCopiado(true);
+            setTimeout(() => setCopiado(false), 1500);
+            onEnviado();
+          }}
+          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
+        >
+          {copiado ? "¡Copiado!" : "Copiar enlace"}
+        </button>
+        <a href={enlace} target="_blank" rel="noreferrer" className="text-xs text-ink/50 underline hover:text-ink">
+          Ver formulario
+        </a>
+      </div>
+      <p className="mt-1.5 text-xs text-ink/50">
+        {enviado ? `Enviado el ${enviado}` : "Aún no enviado"}
+        {!telefono && " · sin teléfono del titular"}
+        {email === null ? "" : ` · ${email}`}
+      </p>
+    </div>
+  );
+}
+
 function EtiquetaFase({ fase }: { fase: Fase }) {
   const f = FASE[fase];
   if (!f) return null;
@@ -267,7 +350,7 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
           <span>{reserva.importe_pendiente ? "○" : "✓"} Importe con comisión</span>
           <span className="text-xs text-ink/50">{reserva.importe_pendiente ? "Pendiente (en el listado)" : "Hecho"}</span>
         </li>
-        <li className="flex items-center justify-between gap-3">
+        <li className="flex flex-wrap items-center justify-between gap-3">
           <span>
             {reserva.formulario_completado_at ? "✓" : "○"} Formulario de huéspedes
             <span className="ml-2 text-xs text-ink/50">
@@ -283,6 +366,9 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
             >
               Cambiar nº de huéspedes
             </button>
+          )}
+          {!cancelada && !reserva.formulario_completado_at && (
+            <EnviarFormulario reserva={reserva} onEnviado={() => actualizar({ formulario_enviado_at: ahora() })} />
           )}
         </li>
         {pasos.map((p) => (
@@ -419,7 +505,7 @@ export default function EntradasView({
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion,
          estado, canal, importe_neto, importe_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
-         num_huespedes,
+         num_huespedes, formulario_token,
          apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
@@ -764,7 +850,7 @@ export default function EntradasView({
             onCambio={async () => {
               const { data } = await supabase
                 .from("reservas")
-                .select("fase, estado, importe_pendiente, num_huespedes, formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at")
+                .select("fase, estado, importe_pendiente, num_huespedes, formulario_token, formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at")
                 .eq("id", detalleReserva.id)
                 .single();
               if (data) setDetalleReserva({ ...detalleReserva, ...(data as any) });

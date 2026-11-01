@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password"];
+const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password", "/f/"];
 
 // Menú lateral: Entradas primero, luego Maestros
 const ITEMS_LATERAL = [

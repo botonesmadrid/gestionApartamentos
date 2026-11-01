@@ -26,3 +26,14 @@ Cada paso guarda cuándo se hizo en `reservas`; la columna calculada `fase` resu
 
 Histórico importado del Sheet: formulario completado (huéspedes ya registrados) y, si la entrada ya pasó,
 check-in completado. Las reservas futuras del Sheet quedan pendientes del contrato.
+
+## Formulario de huéspedes (`/f/<token>`)
+
+- Un enlace secreto por reserva (`reservas.formulario_token`). Página pública, en español e inglés,
+  pensada para móvil: 4 pasos por huésped (datos personales, documento, residencia, contacto),
+  validación de DNI/NIE, buscador de municipios españoles, borrador guardado en el dispositivo y
+  dirección/país/motivo reutilizados para el siguiente huésped. No se suben fotos de documentos.
+- El público no accede a ninguna tabla: solo a `formulario_obtener`, `formulario_municipios` y
+  `formulario_registrar`, que comprueban el token, el estado de la reserva y las plazas.
+- Envío desde Entradas → Detalle → Pasos: WhatsApp (mensaje y enlace ya escritos), email (abre el
+  correo con el texto) o copiar el enlace. Al usarlos se apunta `formulario_enviado_at`.
