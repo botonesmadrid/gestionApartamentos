@@ -88,9 +88,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ))}
           {pendientes > 0 && (
             <Link
-              href="/?pendientes=1"
+              href="/?estado=pendiente_importe"
               onClick={() => {
-                if (pathname === "/") window.location.href = "/?pendientes=1";
+                if (pathname === "/") window.location.href = "/?estado=pendiente_importe";
               }}
               className="mt-1 flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-xs text-amber-900 hover:bg-amber-50 sm:justify-start"
               title={`${pendientes} reservas sin importe con comisión`}

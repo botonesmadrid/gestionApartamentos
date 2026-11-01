@@ -49,6 +49,13 @@ type Reserva = {
   fecha_pago: string | null;
   duracion: number | null;
   estado: "confirmada" | "cancelada";
+  fase: Fase;
+  formulario_enviado_at: string | null;
+  formulario_completado_at: string | null;
+  contrato_enviado_at: string | null;
+  contrato_firmado_at: string | null;
+  checkin_at: string | null;
+  num_huespedes: number | null;
   canal: string | null;
   importe_neto: number | null;
   importe_pendiente: boolean;
@@ -59,6 +66,28 @@ type Reserva = {
 };
 
 type Rango = "ultimos31" | "mesActual" | "personalizado";
+
+// Fases del flujo de una reserva (columna calculada reservas.fase).
+type Fase =
+  | "pendiente_importe"
+  | "pendiente_documentacion"
+  | "lista_checkin"
+  | "checkin_completado"
+  | "cancelada";
+
+const FASES: { valor: Fase; etiqueta: string; clase: string }[] = [
+  { valor: "pendiente_importe", etiqueta: "Pendiente de importe", clase: "bg-amber-100 text-amber-900" },
+  { valor: "pendiente_documentacion", etiqueta: "Pendiente de documentación", clase: "bg-sky-100 text-sky-900" },
+  { valor: "lista_checkin", etiqueta: "Lista para check-in", clase: "bg-emerald-100 text-emerald-900" },
+  { valor: "checkin_completado", etiqueta: "Check-in completado", clase: "bg-ink/10 text-ink/70" },
+  { valor: "cancelada", etiqueta: "Cancelada", clase: "bg-clay/10 text-clay" },
+];
+const FASE = Object.fromEntries(FASES.map((f) => [f.valor, f])) as Record<Fase, (typeof FASES)[number]>;
+
+// Filtro de estado: las fases + "activas" (todo menos canceladas) + "todas".
+type FiltroEstado = Fase | "activas" | "todas";
+// Fases que son tareas por hacer: se muestran sin limitar por fechas.
+const FASES_TAREA: FiltroEstado[] = ["pendiente_importe", "pendiente_documentacion", "lista_checkin"];
 
 function hoyISO() {
   return new Date().toISOString().slice(0, 10);
@@ -171,6 +200,152 @@ function ImportePendiente({ reserva, onGuardado }: { reserva: Reserva; onGuardad
   );
 }
 
+function EtiquetaFase({ fase }: { fase: Fase }) {
+  const f = FASE[fase];
+  if (!f) return null;
+  return (
+    <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${f.clase}`}>
+      {f.etiqueta}
+    </span>
+  );
+}
+
+// Pasos del flujo en el detalle de la reserva. Mientras no estén automatizados
+// (formulario, firma con HelloSign, check-in), se pueden marcar a mano.
+function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  const cancelada = reserva.estado === "cancelada";
+  const yaLlego = reserva.fecha_entrada <= new Date().toISOString().slice(0, 10);
+
+  async function actualizar(cambios: Record<string, unknown>, confirmar?: string) {
+    if (confirmar && !window.confirm(confirmar)) return;
+    setGuardando(true);
+    setError("");
+    const { error: err } = await supabase.from("reservas").update(cambios).eq("id", reserva.id);
+    setGuardando(false);
+    if (err) setError(err.message);
+    else onCambio();
+  }
+  const ahora = () => new Date().toISOString();
+  const fechaHora = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : null;
+
+  const registrados = reserva.huespedes?.length ?? 0;
+
+  async function cambiarNumHuespedes() {
+    const v = window.prompt("Número de huéspedes de la reserva (adultos + niños):", String(reserva.num_huespedes ?? registrados));
+    if (v === null) return;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1) {
+      setError("Introduce un número entero mayor que 0.");
+      return;
+    }
+    actualizar({ num_huespedes: n });
+  }
+
+  // El formulario se completa solo cuando están registrados todos los huéspedes.
+  // El contrato solo lo firma el titular.
+  const pasos: { etiqueta: string; hecho: string | null; campo: string; accion: string; disabled?: boolean; ayuda?: string }[] = [
+    { etiqueta: "Contrato firmado (titular)", hecho: reserva.contrato_firmado_at, campo: "contrato_firmado_at", accion: "Marcar firmado" },
+    {
+      etiqueta: "Check-in",
+      hecho: reserva.checkin_at,
+      campo: "checkin_at",
+      accion: "Completar check-in",
+      disabled: !yaLlego || reserva.importe_pendiente,
+      ayuda: reserva.importe_pendiente ? "Falta el importe" : !yaLlego ? "Disponible desde el día de entrada" : undefined,
+    },
+  ];
+
+  return (
+    <div className="pt-4">
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">Pasos</h3>
+      <ul className="space-y-2">
+        <li className="flex items-center justify-between gap-3">
+          <span>{reserva.importe_pendiente ? "○" : "✓"} Importe con comisión</span>
+          <span className="text-xs text-ink/50">{reserva.importe_pendiente ? "Pendiente (en el listado)" : "Hecho"}</span>
+        </li>
+        <li className="flex items-center justify-between gap-3">
+          <span>
+            {reserva.formulario_completado_at ? "✓" : "○"} Formulario de huéspedes
+            <span className="ml-2 text-xs text-ink/50">
+              {registrados} de {reserva.num_huespedes ?? "?"} registrados
+            </span>
+          </span>
+          {!cancelada && (
+            <button
+              type="button"
+              disabled={guardando}
+              onClick={cambiarNumHuespedes}
+              className="text-xs text-ink/50 underline hover:text-ink"
+            >
+              Cambiar nº de huéspedes
+            </button>
+          )}
+        </li>
+        {pasos.map((p) => (
+          <li key={p.campo} className="flex items-center justify-between gap-3">
+            <span>
+              {p.hecho ? "✓" : "○"} {p.etiqueta}
+              {p.hecho && <span className="ml-2 text-xs text-ink/50">{fechaHora(p.hecho)}</span>}
+            </span>
+            {!cancelada &&
+              (p.hecho ? (
+                <button
+                  type="button"
+                  disabled={guardando}
+                  onClick={() => actualizar({ [p.campo]: null }, `¿Deshacer "${p.etiqueta}"?`)}
+                  className="text-xs text-ink/50 underline hover:text-ink"
+                >
+                  Deshacer
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={guardando || p.disabled}
+                  title={p.ayuda}
+                  onClick={() => actualizar({ [p.campo]: ahora() })}
+                  className="rounded-md border border-line px-2.5 py-1 text-xs text-ink/70 hover:text-ink disabled:opacity-40"
+                >
+                  {p.accion}
+                </button>
+              ))}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 flex justify-end">
+        {cancelada ? (
+          <button
+            type="button"
+            disabled={guardando}
+            onClick={() => actualizar({ estado: "confirmada", cancelada_at: null }, "¿Reactivar esta reserva?")}
+            className="text-xs text-ink/60 underline hover:text-ink"
+          >
+            Reactivar reserva
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={guardando}
+            onClick={() =>
+              actualizar(
+                { estado: "cancelada", cancelada_at: ahora() },
+                "¿Cancelar esta reserva? Se mantiene en el histórico como cancelada.",
+              )
+            }
+            className="text-xs text-clay underline"
+          >
+            Cancelar reserva
+          </button>
+        )}
+      </div>
+      {error && <p className="mt-2 text-xs text-clay">{error}</p>}
+    </div>
+  );
+}
+
 function formatoFecha(iso: string | null) {
   if (!iso) return "—";
   const [a, m, d] = iso.split("-");
@@ -197,15 +372,17 @@ export default function EntradasView({
   const [origen, setOrigen] = useState("");
   const [nochesMin, setNochesMin] = useState("");
   const [nochesMax, setNochesMax] = useState("");
-  const [soloPendientes, setSoloPendientes] = useState(false);
-  const [verCanceladas, setVerCanceladas] = useState(false);
+  const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado>("activas");
   const [busqueda, setBusqueda] = useState("");
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
 
-  // El contador del menú lateral enlaza a "/?pendientes=1".
+  // El contador del menú lateral enlaza a "/?estado=pendiente_importe".
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("pendientes") === "1") setSoloPendientes(true);
+    const p = new URLSearchParams(window.location.search);
+    const e = p.get("estado") ?? (p.get("pendientes") === "1" ? "pendiente_importe" : null);
+    if (e && (e === "activas" || e === "todas" || e in FASE)) setEstadoFiltro(e as FiltroEstado);
   }, []);
+  const sinFechas = FASES_TAREA.includes(estadoFiltro);
 
   // Espera a que se deje de escribir antes de lanzar la consulta.
   useEffect(() => {
@@ -240,7 +417,9 @@ export default function EntradasView({
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion,
-         estado, canal, importe_neto, importe_pendiente,
+         estado, canal, importe_neto, importe_pendiente, fase,
+         formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
+         num_huespedes,
          apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
@@ -251,13 +430,9 @@ export default function EntradasView({
       )
       .order("fecha_entrada", { ascending: false });
 
-    // "Solo pendientes" muestra todas las acciones pendientes, sin limitar por fechas.
-    if (soloPendientes) {
-      query = query.eq("importe_pendiente", true).eq("estado", "confirmada");
-    } else {
-      query = query.gte("fecha_entrada", desde).lte("fecha_entrada", hasta);
-      if (!verCanceladas) query = query.eq("estado", "confirmada");
-    }
+    if (!sinFechas) query = query.gte("fecha_entrada", desde).lte("fecha_entrada", hasta);
+    if (estadoFiltro === "activas") query = query.neq("fase", "cancelada");
+    else if (estadoFiltro !== "todas") query = query.eq("fase", estadoFiltro);
 
     if (apartamentoId) query = query.eq("apartamento_id", apartamentoId);
     if (clienteId) query = query.eq("apartamentos.cliente_id", clienteId);
@@ -290,7 +465,7 @@ export default function EntradasView({
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada, soloPendientes, verCanceladas]);
+  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada, estadoFiltro]);
 
   return (
     <div>
@@ -428,28 +603,27 @@ export default function EntradasView({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-        <label className="!mb-0 flex items-center gap-2 !text-sm !font-normal !text-ink/70">
-          <input
-            type="checkbox"
-            className="!w-auto"
-            checked={soloPendientes}
-            onChange={(e) => setSoloPendientes(e.target.checked)}
-          />
-          Solo con acción pendiente
-        </label>
-        <label className="!mb-0 flex items-center gap-2 !text-sm !font-normal !text-ink/70">
-          <input
-            type="checkbox"
-            className="!w-auto"
-            checked={verCanceladas}
-            disabled={soloPendientes}
-            onChange={(e) => setVerCanceladas(e.target.checked)}
-          />
-          Mostrar canceladas
-        </label>
-        {soloPendientes && (
-          <span className="text-xs text-ink/50">Se muestran todas las fechas.</span>
+      <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
+        <div className="w-full sm:w-72">
+          <label htmlFor="estado">Estado</label>
+          <select
+            id="estado"
+            value={estadoFiltro}
+            onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}
+          >
+            <option value="activas">Activas (todas menos canceladas)</option>
+            {FASES.map((f) => (
+              <option key={f.valor} value={f.valor}>
+                {f.etiqueta}
+              </option>
+            ))}
+            <option value="todas">Todas</option>
+          </select>
+        </div>
+        {sinFechas && (
+          <span className="pb-2 text-xs text-ink/50">
+            Se muestran todas las fechas: son tareas por hacer.
+          </span>
         )}
       </div>
 
@@ -471,7 +645,7 @@ export default function EntradasView({
             return (
               <div
                 key={r.id}
-                className={`rounded-lg border border-line bg-white ${r.estado === "cancelada" ? "opacity-60" : ""}`}
+                className={`rounded-lg border border-line bg-white ${r.fase === "cancelada" ? "opacity-60" : ""}`}
               >
                 <div className="flex flex-wrap items-center gap-4 px-4 py-3">
                   <div className="min-w-[180px]">
@@ -488,18 +662,21 @@ export default function EntradasView({
                     </div>
                     <div className="text-xs text-ink/50">{origen ?? "Sin origen"}</div>
                   </div>
-                  <div className="text-sm">
-                    {r.estado === "cancelada" ? (
-                      <span className="rounded-full bg-clay/10 px-2 py-0.5 text-xs font-medium text-clay">
-                        Cancelada
-                      </span>
-                    ) : r.importe_pendiente ? (
+                  <div className="flex flex-col items-start gap-1 text-sm">
+                    <EtiquetaFase fase={r.fase} />
+                    {r.fase === "pendiente_importe" ? (
                       <ImportePendiente reserva={r} onGuardado={cargar} />
+                    ) : r.fase === "pendiente_documentacion" ? (
+                      <span className="text-xs text-ink/60">
+                        Falta {[
+                          !r.formulario_completado_at &&
+                            `formulario (${r.huespedes?.length ?? 0}${r.num_huespedes ? ` de ${r.num_huespedes}` : ""} huéspedes)`,
+                          !r.contrato_firmado_at && "contrato firmado",
+                        ].filter(Boolean).join(" y ")}
+                      </span>
                     ) : r.importe != null ? (
-                      `${euros(r.importe)}`
-                    ) : (
-                      "—"
-                    )}
+                      <span className="text-ink/70">{euros(r.importe)}</span>
+                    ) : null}
                   </div>
 
                   <div className="ml-auto flex items-center gap-3 text-sm">
@@ -580,8 +757,21 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Forma de pago" valor={detalleReserva.formas_pago?.descripcion} />
           <FilaDetalle etiqueta="Fecha de pago" valor={formatoFecha(detalleReserva.fecha_pago)} />
           <FilaDetalle etiqueta="Importe neto (portal)" valor={detalleReserva.importe_neto != null ? euros(detalleReserva.importe_neto) : null} />
-          <FilaDetalle etiqueta="Estado" valor={detalleReserva.estado === "cancelada" ? "Cancelada" : "Confirmada"} />
+          <FilaDetalle etiqueta="Estado" valor={<EtiquetaFase fase={detalleReserva.fase} />} />
           <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
+          <PasosReserva
+            reserva={detalleReserva}
+            onCambio={async () => {
+              const { data } = await supabase
+                .from("reservas")
+                .select("fase, estado, importe_pendiente, num_huespedes, formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at")
+                .eq("id", detalleReserva.id)
+                .single();
+              if (data) setDetalleReserva({ ...detalleReserva, ...(data as any) });
+              window.dispatchEvent(new Event("pendientes-cambiados"));
+              cargar();
+            }}
+          />
         </ModalDetalle>
       )}
 
