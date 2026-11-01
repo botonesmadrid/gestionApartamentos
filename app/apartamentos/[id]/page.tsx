@@ -30,10 +30,10 @@ export default async function ApartamentoPage({
       </Link>
 
       <h1 className="mt-2 font-display text-3xl font-semibold">
-        {apartamento.apartamento}
+        {apartamento.piso}
       </h1>
       <p className="mt-1 text-sm text-ink/60">
-        {[apartamento.piso, apartamento.clientes?.[0]?.nombre].filter(Boolean).join(" · ")}
+        {apartamento.clientes?.nombre}
       </p>
 
       <div className="mt-8 flex items-center justify-between">

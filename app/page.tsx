@@ -11,8 +11,8 @@ export default async function Home() {
 
   const { data: apartamentos } = await supabase
     .from("apartamentos")
-    .select("id, apartamento, piso")
-    .order("apartamento");
+    .select("id, piso")
+    .order("piso");
 
   const { data: clientes } = await supabase
     .from("clientes")

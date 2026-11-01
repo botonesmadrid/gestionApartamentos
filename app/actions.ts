@@ -42,8 +42,7 @@ export async function crearApartamento(formData: FormData) {
 
   const { error } = await supabase.from("apartamentos").insert({
     gestor_id: user.id,
-    apartamento: String(formData.get("apartamento") ?? ""),
-    piso: String(formData.get("piso") ?? "") || null,
+    piso: String(formData.get("piso") ?? "").trim(),
     codigo_establecimiento: String(formData.get("codigo_establecimiento") ?? "") || null,
     num_registro: String(formData.get("num_registro") ?? "") || null,
     cliente_id: clienteId,

@@ -10,8 +10,8 @@ export default async function ApartamentosPage() {
 
   const { data: apartamentos } = await supabase
     .from("apartamentos")
-    .select("id, apartamento, piso, clientes(nombre)")
-    .order("apartamento");
+    .select("id, piso, clientes(nombre)")
+    .order("piso");
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -28,11 +28,8 @@ export default async function ApartamentosPage() {
                 href={`/apartamentos/${a.id}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-paper"
               >
-                <span>
-                  <span className="font-medium">{a.apartamento}</span>
-                  {a.piso && <span className="text-ink/50"> · {a.piso}</span>}
-                </span>
-                <span className="text-sm text-ink/40">{a.clientes?.[0]?.nombre ?? ""}</span>
+                <span className="font-medium">{a.piso}</span>
+                <span className="text-sm text-ink/40">{(a.clientes as unknown as { nombre: string } | null)?.nombre ?? ""}</span>
               </Link>
             </li>
           ))
@@ -48,13 +45,9 @@ export default async function ApartamentosPage() {
           + Añadir apartamento
         </summary>
         <form action={crearApartamento} className="mt-4 grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label htmlFor="apartamento">Nombre / identificador</label>
-            <input id="apartamento" name="apartamento" required placeholder="Ático Sol" />
-          </div>
           <div>
             <label htmlFor="piso">Piso</label>
-            <input id="piso" name="piso" placeholder="3ºB" />
+            <input id="piso" name="piso" required placeholder="3ºB" />
           </div>
           <div>
             <label htmlFor="cliente">Cliente / propietario</label>

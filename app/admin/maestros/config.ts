@@ -34,10 +34,9 @@ export const MAESTROS: MaestroConfig[] = [
     pk: "id",
     pkGenerada: true,
     campoAutoUsuario: "gestor_id",
-    ordenarPor: "apartamento",
+    ordenarPor: "piso",
     campos: [
-      { key: "apartamento", etiqueta: "Apartamento", tipo: "text", requerido: true },
-      { key: "piso", etiqueta: "Piso", tipo: "text" },
+      { key: "piso", etiqueta: "Piso", tipo: "text", requerido: true },
       { key: "codigo_establecimiento", etiqueta: "Código establecimiento", tipo: "text" },
       { key: "num_registro", etiqueta: "Núm. registro", tipo: "text" },
       {

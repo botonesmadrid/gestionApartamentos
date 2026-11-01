@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-type Apartamento = { id: string; apartamento: string; piso: string | null };
+type Apartamento = { id: string; piso: string };
 type Cliente = { id: string; nombre: string };
 
 type Huesped = {
@@ -44,7 +44,7 @@ type Reserva = {
   telefono: string | null;
   fecha_pago: string | null;
   duracion: number | null;
-  apartamentos: { apartamento: string; piso: string | null } | null;
+  apartamentos: { piso: string } | null;
   origenes_reserva: { nombre: string } | null;
   formas_pago: { descripcion: string } | null;
   huespedes: Huesped[] | null;
@@ -92,7 +92,6 @@ export default function EntradasView({
   const [hasta, setHasta] = useState(hoyISO());
 
   const [apartamentoId, setApartamentoId] = useState("");
-  const [piso, setPiso] = useState("");
   const [clienteId, setClienteId] = useState("");
 
   const [reservas, setReservas] = useState<Reserva[]>([]);
@@ -101,12 +100,6 @@ export default function EntradasView({
   const [expandida, setExpandidaId] = useState<string | null>(null);
   const [detalleReserva, setDetalleReserva] = useState<Reserva | null>(null);
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
-
-  const pisos = useMemo(
-    () =>
-      Array.from(new Set(apartamentos.map((a) => a.piso).filter(Boolean))) as string[],
-    [apartamentos]
-  );
 
   function elegirRango(r: Rango) {
     setRango(r);
@@ -128,7 +121,7 @@ export default function EntradasView({
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion,
-         apartamentos!inner(apartamento, piso, cliente_id),
+         apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
          huespedes(id, nombre, apellido1, apellido2, telefono, correo, fecha_nacimiento,
@@ -141,7 +134,6 @@ export default function EntradasView({
       .order("fecha_entrada", { ascending: false });
 
     if (apartamentoId) query = query.eq("apartamento_id", apartamentoId);
-    if (piso) query = query.eq("apartamentos.piso", piso);
     if (clienteId) query = query.eq("apartamentos.cliente_id", clienteId);
 
     const { data, error: err } = await query;
@@ -157,7 +149,7 @@ export default function EntradasView({
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, apartamentoId, piso, clienteId]);
+  }, [desde, hasta, apartamentoId, clienteId]);
 
   return (
     <div>
@@ -216,9 +208,9 @@ export default function EntradasView({
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="apartamento">Apartamento</label>
+            <label htmlFor="apartamento">Piso</label>
             <select
               id="apartamento"
               value={apartamentoId}
@@ -227,19 +219,7 @@ export default function EntradasView({
               <option value="">Todos</option>
               {apartamentos.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.apartamento}
-                  {a.piso ? ` · ${a.piso}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="piso">Piso</label>
-            <select id="piso" value={piso} onChange={(e) => setPiso(e.target.value)}>
-              <option value="">Todos</option>
-              {pisos.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+                  {a.piso}
                 </option>
               ))}
             </select>
@@ -281,8 +261,7 @@ export default function EntradasView({
                       {formatoFecha(r.fecha_entrada)} → {formatoFecha(r.fecha_salida)}
                     </div>
                     <div className="text-xs text-ink/50">
-                      {apartamento?.apartamento}
-                      {apartamento?.piso ? ` · ${apartamento.piso}` : ""}
+                      {apartamento?.piso}
                     </div>
                   </div>
                   <div className="min-w-[160px]">
@@ -351,7 +330,6 @@ export default function EntradasView({
 
       {detalleReserva && (
         <ModalDetalle titulo="Detalle de la entrada" onCerrar={() => setDetalleReserva(null)}>
-          <FilaDetalle etiqueta="Apartamento" valor={detalleReserva.apartamentos?.apartamento} />
           <FilaDetalle etiqueta="Piso" valor={detalleReserva.apartamentos?.piso} />
           <FilaDetalle etiqueta="Fecha de reserva" valor={formatoFecha(detalleReserva.fecha_reserva)} />
           <FilaDetalle etiqueta="Entrada" valor={formatoFecha(detalleReserva.fecha_entrada)} />
