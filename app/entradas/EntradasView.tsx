@@ -338,6 +338,65 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
   );
 }
 
+// Pasos de la reserva en la propia fila del listado: hecho (verde), el siguiente
+// por hacer (ámbar) y los que vienen después (gris). Al pulsar se abren las acciones.
+function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; abierto: boolean; onAbrir: () => void }) {
+  const registrados = r.huespedes?.length ?? 0;
+  const pasos = [
+    {
+      clave: "importe",
+      etiqueta: !r.importe_pendiente && r.importe != null ? euros(r.importe) : "Importe",
+      hecho: !r.importe_pendiente,
+      titulo: r.importe_pendiente ? "Falta el importe con comisión" : "Importe con comisión",
+    },
+    {
+      clave: "huespedes",
+      etiqueta: `Huéspedes ${registrados}/${r.num_huespedes ?? "?"}`,
+      hecho: !!r.formulario_completado_at,
+      titulo: r.formulario_completado_at
+        ? "Todos los huéspedes registrados"
+        : r.formulario_enviado_at
+          ? "Formulario enviado; faltan huéspedes"
+          : "Formulario sin enviar",
+      enviado: !r.formulario_completado_at && !!r.formulario_enviado_at,
+    },
+    { clave: "contrato", etiqueta: "Contrato", hecho: !!r.contrato_firmado_at, titulo: r.contrato_firmado_at ? "Contrato firmado" : "Contrato sin firmar" },
+    { clave: "checkin", etiqueta: "Check-in", hecho: !!r.checkin_at, titulo: r.checkin_at ? "Check-in completado" : "Check-in pendiente" },
+  ];
+  const siguiente = pasos.findIndex((p) => !p.hecho);
+
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      aria-expanded={abierto}
+      className={`group flex flex-wrap items-center gap-1 rounded-md p-0.5 text-left ${abierto ? "bg-paper" : "hover:bg-paper"}`}
+      title="Ver y gestionar los pasos"
+    >
+      {pasos.map((p, i) => {
+        const clase = p.hecho
+          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+          : i === siguiente
+            ? "bg-amber-50 text-amber-900 border-amber-300"
+            : "bg-white text-ink/40 border-line";
+        return (
+          <span key={p.clave} className="flex items-center gap-1">
+            {i > 0 && <span className="text-ink/25" aria-hidden>›</span>}
+            <span title={p.titulo} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs ${clase}`}>
+              <span aria-hidden>{p.hecho ? "✓" : i === siguiente ? "●" : "○"}</span>
+              {p.etiqueta}
+              {"enviado" in p && p.enviado && <span className="text-[10px] opacity-70">· enviado</span>}
+            </span>
+          </span>
+        );
+      })}
+      <span className="ml-1 text-xs text-ink/40 group-hover:text-ink/70" aria-hidden>
+        {abierto ? "▴" : "▾"}
+      </span>
+    </button>
+  );
+}
+
 function EtiquetaFase({ fase }: { fase: Fase }) {
   const f = FASE[fase];
   if (!f) return null;
@@ -398,8 +457,7 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
   ];
 
   return (
-    <div className="pt-4">
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">Pasos</h3>
+    <div>
       <ul className="space-y-2">
         <li className="flex items-center justify-between gap-3">
           <span>{reserva.importe_pendiente ? "○" : "✓"} Importe con comisión</span>
@@ -535,6 +593,7 @@ export default function EntradasView({
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [expandida, setExpandidaId] = useState<string | null>(null);
+  const [pasosAbiertos, setPasosAbiertos] = useState<string | null>(null);
   const [detalleReserva, setDetalleReserva] = useState<Reserva | null>(null);
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
 
@@ -783,6 +842,7 @@ export default function EntradasView({
             const apartamento = r.apartamentos;
             const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
+            const conPasos = pasosAbiertos === r.id;
             return (
               <div
                 key={r.id}
@@ -803,21 +863,17 @@ export default function EntradasView({
                     </div>
                     <div className="text-xs text-ink/50">{origen ?? "Sin origen"}</div>
                   </div>
-                  <div className="flex flex-col items-start gap-1 text-sm">
-                    <EtiquetaFase fase={r.fase} />
-                    {r.fase === "pendiente_importe" ? (
-                      <ImportePendiente reserva={r} onGuardado={cargar} />
-                    ) : r.fase === "pendiente_documentacion" ? (
-                      <span className="text-xs text-ink/60">
-                        Falta {[
-                          !r.formulario_completado_at &&
-                            `formulario (${r.huespedes?.length ?? 0}${r.num_huespedes ? ` de ${r.num_huespedes}` : ""} huéspedes)`,
-                          !r.contrato_firmado_at && "contrato firmado",
-                        ].filter(Boolean).join(" y ")}
-                      </span>
-                    ) : r.importe != null ? (
-                      <span className="text-ink/70">{euros(r.importe)}</span>
-                    ) : null}
+                  <div className="flex min-w-0 flex-col items-start gap-1.5 text-sm">
+                    {r.fase === "cancelada" ? (
+                      <EtiquetaFase fase={r.fase} />
+                    ) : (
+                      <IndicadorPasos
+                        reserva={r}
+                        abierto={conPasos}
+                        onAbrir={() => setPasosAbiertos(conPasos ? null : r.id)}
+                      />
+                    )}
+                    {r.fase === "pendiente_importe" && <ImportePendiente reserva={r} onGuardado={cargar} />}
                   </div>
 
                   <div className="ml-auto flex items-center gap-3 text-sm">
@@ -837,6 +893,18 @@ export default function EntradasView({
                     </button>
                   </div>
                 </div>
+
+                {conPasos && (
+                  <div className="border-t border-line bg-paper px-4 py-3">
+                    <PasosReserva
+                      reserva={r}
+                      onCambio={() => {
+                        window.dispatchEvent(new Event("pendientes-cambiados"));
+                        cargar();
+                      }}
+                    />
+                  </div>
+                )}
 
                 {abierta && (
                   <div className="border-t border-line bg-paper px-4 py-3">
@@ -900,19 +968,6 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Importe neto (portal)" valor={detalleReserva.importe_neto != null ? euros(detalleReserva.importe_neto) : null} />
           <FilaDetalle etiqueta="Estado" valor={<EtiquetaFase fase={detalleReserva.fase} />} />
           <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
-          <PasosReserva
-            reserva={detalleReserva}
-            onCambio={async () => {
-              const { data } = await supabase
-                .from("reservas")
-                .select("fase, estado, importe_pendiente, num_huespedes, formulario_token, formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at")
-                .eq("id", detalleReserva.id)
-                .single();
-              if (data) setDetalleReserva({ ...detalleReserva, ...(data as any) });
-              window.dispatchEvent(new Event("pendientes-cambiados"));
-              cargar();
-            }}
-          />
         </ModalDetalle>
       )}
 
