@@ -13,7 +13,8 @@ por cada reserva nueva, modificación o cancelación. Esos correos alimentan la 
    - busca la reserva por **código** y, si no, por **piso + entrada + salida**;
    - **alta** → crea la reserva; **modificación** → la actualiza; **cancelación** → `estado = 'cancelada'` (no se borra);
    - cada correo queda en `public.avisos_canal` (texto original, datos leídos y resultado);
-     los que no se pueden aplicar quedan con `resultado = 'revisar'`.
+     los que no se pueden aplicar quedan con `resultado = 'revisar'`;
+   - un aviso más antiguo que el último aplicado a esa reserva no la modifica (`resultado = 'obsoleto'`).
 
 ## Importes
 
