@@ -19,6 +19,11 @@ export default async function Home() {
     .select("id, nombre")
     .order("nombre");
 
+  const { data: origenes } = await supabase
+    .from("origenes_reserva")
+    .select("codigo, nombre")
+    .order("nombre");
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
       <h1 className="font-display text-3xl font-semibold">Entradas</h1>
@@ -27,7 +32,11 @@ export default async function Home() {
       </p>
 
       <div className="mt-8">
-        <EntradasView apartamentos={apartamentos ?? []} clientes={clientes ?? []} />
+        <EntradasView
+          apartamentos={apartamentos ?? []}
+          clientes={clientes ?? []}
+          origenes={origenes ?? []}
+        />
       </div>
     </main>
   );

@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 
 type Apartamento = { id: string; piso: string };
 type Cliente = { id: string; nombre: string };
+type Origen = { codigo: string; nombre: string };
+
+// Valor especial del filtro de origen para las reservas sin origen informado.
+const SIN_ORIGEN = "__sin_origen__";
 
 type Huesped = {
   id: string;
@@ -81,9 +85,11 @@ function formatoFecha(iso: string | null) {
 export default function EntradasView({
   apartamentos,
   clientes,
+  origenes,
 }: {
   apartamentos: Apartamento[];
   clientes: Cliente[];
+  origenes: Origen[];
 }) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -93,6 +99,9 @@ export default function EntradasView({
 
   const [apartamentoId, setApartamentoId] = useState("");
   const [clienteId, setClienteId] = useState("");
+  const [origen, setOrigen] = useState("");
+  const [nochesMin, setNochesMin] = useState("");
+  const [nochesMax, setNochesMax] = useState("");
 
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -135,6 +144,10 @@ export default function EntradasView({
 
     if (apartamentoId) query = query.eq("apartamento_id", apartamentoId);
     if (clienteId) query = query.eq("apartamentos.cliente_id", clienteId);
+    if (origen === SIN_ORIGEN) query = query.is("origen_codigo", null);
+    else if (origen) query = query.eq("origen_codigo", origen);
+    if (nochesMin !== "") query = query.gte("duracion", Number(nochesMin));
+    if (nochesMax !== "") query = query.lte("duracion", Number(nochesMax));
 
     const { data, error: err } = await query;
     if (err) {
@@ -149,12 +162,15 @@ export default function EntradasView({
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, apartamentoId, clienteId]);
+  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax]);
 
   return (
     <div>
       {/* Filtros */}
       <div className="rounded-lg border border-line bg-white p-4">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">
+          Fecha de entrada
+        </p>
         <div className="flex flex-wrap gap-2 text-sm">
           <button
             type="button"
@@ -188,7 +204,7 @@ export default function EntradasView({
         {rango === "personalizado" && (
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <div>
-              <label htmlFor="desde">Desde</label>
+              <label htmlFor="desde">Entrada desde</label>
               <input
                 id="desde"
                 type="date"
@@ -197,7 +213,7 @@ export default function EntradasView({
               />
             </div>
             <div>
-              <label htmlFor="hasta">Hasta</label>
+              <label htmlFor="hasta">Entrada hasta</label>
               <input
                 id="hasta"
                 type="date"
@@ -208,7 +224,7 @@ export default function EntradasView({
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label htmlFor="apartamento">Piso</label>
             <select
@@ -234,6 +250,42 @@ export default function EntradasView({
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label htmlFor="origen">Origen</label>
+            <select id="origen" value={origen} onChange={(e) => setOrigen(e.target.value)}>
+              <option value="">Todos</option>
+              {origenes.map((o) => (
+                <option key={o.codigo} value={o.codigo}>
+                  {o.nombre}
+                </option>
+              ))}
+              <option value={SIN_ORIGEN}>Sin origen</option>
+            </select>
+          </div>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-ink/60">Duración (noches)</span>
+            <div className="flex items-center gap-2">
+              <input
+                aria-label="Noches mínimas"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Mín."
+                value={nochesMin}
+                onChange={(e) => setNochesMin(e.target.value)}
+              />
+              <span className="text-ink/40">–</span>
+              <input
+                aria-label="Noches máximas"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Máx."
+                value={nochesMax}
+                onChange={(e) => setNochesMax(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </div>
