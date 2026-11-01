@@ -102,6 +102,14 @@ export default function EntradasView({
   const [origen, setOrigen] = useState("");
   const [nochesMin, setNochesMin] = useState("");
   const [nochesMax, setNochesMax] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [busquedaAplicada, setBusquedaAplicada] = useState("");
+
+  // Espera a que se deje de escribir antes de lanzar la consulta.
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaAplicada(busqueda.trim()), 300);
+    return () => clearTimeout(t);
+  }, [busqueda]);
 
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -149,6 +157,17 @@ export default function EntradasView({
     if (nochesMin !== "") query = query.gte("duracion", Number(nochesMin));
     if (nochesMax !== "") query = query.lte("duracion", Number(nochesMax));
 
+    // Búsqueda por titular: cada palabra tiene que aparecer en el nombre o en
+    // alguno de los apellidos. Se quitan los caracteres con significado
+    // especial en los filtros de PostgREST.
+    const palabras = busquedaAplicada
+      .replace(/[,()*%\\:."']/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+    for (const p of palabras) {
+      query = query.or(`nombre.ilike.%${p}%,apellido1.ilike.%${p}%,apellido2.ilike.%${p}%`);
+    }
+
     const { data, error: err } = await query;
     if (err) {
       setError(err.message);
@@ -162,12 +181,22 @@ export default function EntradasView({
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax]);
+  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada]);
 
   return (
     <div>
       {/* Filtros */}
       <div className="rounded-lg border border-line bg-white p-4">
+        <div className="mb-4">
+          <label htmlFor="busqueda">Buscar por titular de la reserva</label>
+          <input
+            id="busqueda"
+            type="search"
+            placeholder="Nombre o apellidos"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">
           Fecha de entrada
         </p>
