@@ -5,12 +5,13 @@
 //
 // Secretos necesarios (supabase secrets set …):
 //   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN  → OAuth "Interna" de Google Workspace
-//   AVISOS_CRON_SECRET                                        → cabecera x-cron-secret de la llamada programada
 // SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los inyecta Supabase.
+// La llamada programada envía la cabecera x-cron-secret, que se comprueba contra Vault
+// (public.verificar_secreto_cron); el secreto no sale de la base de datos.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { leerAvisoAvirato } from "../_shared/avirato.ts";
+import { aTextoPlano, leerAvisoAvirato } from "../_shared/avirato.ts";
 
-const CONSULTA = 'from:noreply@avirato.com subject:"Id reserva" newer_than:7d';
+const CONSULTA = 'from:noreply@avirato.com subject:"Id reserva" newer_than:30d';
 
 async function tokenGmail(): Promise<string> {
   const r = await fetch("https://oauth2.googleapis.com/token", {
@@ -55,21 +56,32 @@ function cuerpoDe(payload: any): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-cron-secret") !== Deno.env.get("AVISOS_CRON_SECRET")) {
-    return new Response("forbidden", { status: 403 });
-  }
-
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false },
   });
 
+  const { data: autorizado } = await db.rpc("verificar_secreto_cron", {
+    p: req.headers.get("x-cron-secret") ?? "",
+  });
+  if (autorizado !== true) return new Response("forbidden", { status: 403 });
+
+  try {
+    return Response.json(await procesar(db));
+  } catch (e) {
+    console.error("avisos-avirato:", e);
+    return Response.json({ error: String(e) }, { status: 500 });
+  }
+});
+
+// deno-lint-ignore no-explicit-any
+async function procesar(db: any) {
   const token = await tokenGmail();
   const lista = await gmail(
     token,
     `messages?includeSpamTrash=true&maxResults=100&q=${encodeURIComponent(CONSULTA)}`,
   );
   const ids: string[] = (lista.messages ?? []).map((m: any) => m.id);
-  if (ids.length === 0) return Response.json({ procesados: 0 });
+  if (ids.length === 0) return { procesados: 0 };
 
   const { data: yaVistos } = await db.from("avisos_canal").select("mensaje_id").in("mensaje_id", ids);
   const vistos = new Set((yaVistos ?? []).map((v) => v.mensaje_id));
@@ -91,7 +103,7 @@ Deno.serve(async (req) => {
         mensaje_id: id,
         recibido_at: new Date(Number(m.internalDate)).toISOString(),
         asunto,
-        cuerpo,
+        cuerpo: aTextoPlano(cuerpo), // texto limpio: suficiente para revisar o reprocesar
         ...aviso,
         // más de una habitación en un aviso: que lo revise una persona
         tipo: aviso.habitaciones === 1 ? aviso.tipo : "revisar",
@@ -100,5 +112,5 @@ Deno.serve(async (req) => {
     resultados.push({ id, codigo: aviso.codigo, resultado: error ? `error: ${error.message}` : data?.resultado });
   }
 
-  return Response.json({ procesados: resultados.length, resultados });
-});
+  return { procesados: resultados.length, resultados };
+}

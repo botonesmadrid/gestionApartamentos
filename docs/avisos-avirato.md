@@ -40,7 +40,23 @@ Cada apartamento tiene `nombre_en_canal` (editable en Maestros → Apartamentos)
    credenciales *ID de cliente OAuth* (aplicación web). Scope: `https://www.googleapis.com/auth/gmail.readonly`.
 2. Obtener un *refresh token* autorizando con `hola@botonesmadrid.com`.
 3. Guardar los secretos en Supabase (nunca en el código):
-   `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `AVISOS_CRON_SECRET`.
-4. Desplegar la función `avisos-avirato` (sin verificación JWT; la protege `x-cron-secret`).
-5. Programarla con `pg_cron` + `pg_net` cada 5 minutos, enviando la cabecera `x-cron-secret`
+   `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`. El secreto de la llamada programada (`avisos_cron_secret`) se genera en Vault y la función lo comprueba con `public.verificar_secreto_cron`.
+4. Activar la **Gmail API** en el proyecto de Google Cloud.
+5. Desplegar la función `avisos-avirato` (sin verificación JWT; la protege `x-cron-secret`).
+6. Programarla con `pg_cron` + `pg_net` cada 5 minutos, enviando la cabecera `x-cron-secret`
    (el secreto guardado en Vault, no en texto plano).
+
+## Revisar que funciona
+
+```sql
+-- últimas ejecuciones programadas
+select start_time, status, return_message from cron.job_run_details
+where jobid = (select jobid from cron.job where jobname = 'avisos-avirato')
+order by start_time desc limit 10;
+
+-- respuestas de la función (se guardan unas horas)
+select created, status_code, left(content::text, 300) from net._http_response order by created desc limit 10;
+
+-- correos procesados y los que hay que revisar
+select recibido_at, asunto, resultado, detalle from public.avisos_canal order by recibido_at desc;
+```
