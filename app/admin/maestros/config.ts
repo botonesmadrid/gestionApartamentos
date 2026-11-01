@@ -12,6 +12,7 @@ export interface MaestroCampo {
   tipo: TipoCampo;
   requerido?: boolean;
   select?: CampoSelect;
+  enLista?: boolean; // false: solo en el formulario, no como columna de la tabla
 }
 
 export interface MaestroConfig {
@@ -37,16 +38,16 @@ export const MAESTROS: MaestroConfig[] = [
     ordenarPor: "piso",
     campos: [
       { key: "piso", etiqueta: "Piso", tipo: "text", requerido: true },
-      { key: "nombre_en_canal", etiqueta: "Nombre en el channel manager", tipo: "text" },
+      { key: "nombre_en_canal", etiqueta: "Nombre en el channel manager", tipo: "text", enLista: false },
       { key: "codigo_establecimiento", etiqueta: "Código establecimiento", tipo: "text" },
-      { key: "num_registro", etiqueta: "Núm. registro", tipo: "text" },
+      { key: "num_registro", etiqueta: "Núm. registro", tipo: "text", enLista: false },
       {
         key: "cliente_id",
         etiqueta: "Cliente",
         tipo: "select",
         select: { tabla: "clientes", valor: "id", etiqueta: "nombre" },
       },
-      { key: "cru", etiqueta: "CRU", tipo: "text" },
+      { key: "cru", etiqueta: "CRU", tipo: "text", enLista: false },
     ],
   },
   {
@@ -61,8 +62,8 @@ export const MAESTROS: MaestroConfig[] = [
       { key: "nombre", etiqueta: "Nombre", tipo: "text", requerido: true },
       { key: "email", etiqueta: "Email", tipo: "text" },
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },
-      { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos (ID de Drive)", tipo: "text" },
-      { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato (ID de Google Docs)", tipo: "text" },
+      { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos (ID de Drive)", tipo: "text", enLista: false },
+      { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato (ID de Google Docs)", tipo: "text", enLista: false },
     ],
   },
   {

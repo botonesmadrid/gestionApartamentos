@@ -180,6 +180,9 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
     );
   }
 
+  const columnas = config.campos.filter((c) => c.enLista !== false);
+  const filaEditando = editandoPk ? filas.find((f) => f[config.pk] === editandoPk) : null;
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
@@ -192,7 +195,7 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
             setBusqueda(e.target.value);
             cargarFilas(e.target.value);
           }}
-          className="max-w-xs"
+          className="sm:max-w-xs"
         />
         <button
           type="button"
@@ -232,28 +235,62 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
         </form>
       )}
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-line bg-white">
-        <table className="w-full text-sm">
+      {filaEditando && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            guardarEdicion();
+          }}
+          className="mt-4 grid grid-cols-1 gap-3 rounded-lg border border-ink/20 bg-white p-4 sm:grid-cols-2 xl:grid-cols-3"
+        >
+          <p className="col-span-full text-sm font-medium">Editar</p>
+          {config.campos.map((campo) => (
+            <div key={campo.key}>
+              <label>
+                {campo.etiqueta}
+                {campo.requerido ? " *" : ""}
+              </label>
+              {renderCampoInput(
+                campo.key,
+                borrador[campo.key],
+                (v) => setBorrador((prev) => ({ ...prev, [campo.key]: v })),
+                campo.key === config.pk && !config.pkGenerada,
+              )}
+            </div>
+          ))}
+          <div className="col-span-full flex gap-3">
+            <button type="submit" className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-ink/90">
+              Guardar cambios
+            </button>
+            <button type="button" onClick={cancelarEdicion} className="text-sm text-ink/50 hover:text-ink">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="mt-4 overflow-hidden rounded-lg border border-line bg-white">
+        <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="border-b border-line text-left text-ink/50">
-              {config.campos.map((campo) => (
-                <th key={campo.key} className="px-3 py-2 font-medium">
+              {columnas.map((campo) => (
+                <th key={campo.key} className="truncate px-3 py-2 font-medium">
                   {campo.etiqueta}
                 </th>
               ))}
-              <th className="px-3 py-2" />
+              <th className="w-20 px-3 py-2" />
             </tr>
           </thead>
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan={config.campos.length + 1} className="px-3 py-6 text-center text-ink/40">
+                <td colSpan={columnas.length + 1} className="px-3 py-6 text-center text-ink/40">
                   Cargando…
                 </td>
               </tr>
             ) : filas.length === 0 ? (
               <tr>
-                <td colSpan={config.campos.length + 1} className="px-3 py-6 text-center text-ink/40">
+                <td colSpan={columnas.length + 1} className="px-3 py-6 text-center text-ink/40">
                   {config.requiereBusqueda && busqueda.trim().length < 2
                     ? "Escribe al menos 2 letras para buscar."
                     : "Sin resultados."}
@@ -263,34 +300,22 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
               filas.map((fila) => {
                 const enEdicion = editandoPk === fila[config.pk];
                 return (
-                  <tr key={fila[config.pk]} className="border-b border-line last:border-0">
-                    {config.campos.map((campo) => (
-                      <td key={campo.key} className="px-3 py-2">
-                        {enEdicion
-                          ? renderCampoInput(
-                              campo.key,
-                              borrador[campo.key],
-                              (v) => setBorrador((prev) => ({ ...prev, [campo.key]: v })),
-                              campo.key === config.pk && !config.pkGenerada
-                            )
-                          : campo.tipo === "select"
-                          ? etiquetaDe(campo.key, fila[campo.key])
-                          : fila[campo.key]}
-                      </td>
-                    ))}
+                  <tr
+                    key={fila[config.pk]}
+                    className={`border-b border-line last:border-0 ${enEdicion ? "bg-paper" : ""}`}
+                  >
+                    {columnas.map((campo) => {
+                      const texto =
+                        campo.tipo === "select" ? etiquetaDe(campo.key, fila[campo.key]) : fila[campo.key];
+                      return (
+                        <td key={campo.key} className="truncate px-3 py-2" title={texto ? String(texto) : undefined}>
+                          {texto ?? <span className="text-ink/30">—</span>}
+                        </td>
+                      );
+                    })}
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       {enEdicion ? (
-                        <>
-                          <button
-                            onClick={guardarEdicion}
-                            className="mr-2 text-ink/70 hover:text-ink"
-                          >
-                            Guardar
-                          </button>
-                          <button onClick={cancelarEdicion} className="text-ink/40 hover:text-ink">
-                            Cancelar
-                          </button>
-                        </>
+                        <span className="text-xs text-ink/40">Editando</span>
                       ) : (
                         <button
                           onClick={() => empezarEdicion(fila)}

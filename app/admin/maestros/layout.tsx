@@ -21,17 +21,18 @@ export default async function MaestrosLayout({ children }: { children: React.Rea
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-6 py-12">
       <h1 className="font-display text-3xl font-semibold">Maestros</h1>
       <p className="mt-1 text-sm text-ink/60">
         Consulta, edita y añade valores de los catálogos usados en toda la app.
       </p>
 
-      <div className="mt-6">
-        <PestanasMaestros pestanas={MAESTROS.map(({ slug, titulo }) => ({ slug, titulo }))} />
+      <div className="mt-6 grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <aside className="lg:sticky lg:top-6 lg:self-start">
+          <PestanasMaestros pestanas={MAESTROS.map(({ slug, titulo }) => ({ slug, titulo }))} />
+        </aside>
+        <div className="min-w-0">{children}</div>
       </div>
-
-      <div className="mt-6">{children}</div>
     </main>
   );
 }

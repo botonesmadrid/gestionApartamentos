@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva } from "./Edicion";
+import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 type Apartamento = { id: string; piso: string };
 type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string };
@@ -759,13 +760,31 @@ export default function EntradasView({
   const [busqueda, setBusqueda] = useState("");
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
 
-  // El contador del menú lateral enlaza a "/?estado=pendiente_importe".
+  // Acción pendiente elegida en el menú lateral (/?accion=…): muestra solo esas reservas,
+  // sin límite de fechas y con los pasos desplegados para actuar directamente.
+  const [accion, setAccion] = useState<Accion | null>(null);
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    const e = p.get("estado") ?? (p.get("pendientes") === "1" ? "pendiente_importe" : null);
-    if (e && (e === "activas" || e === "todas" || e in FASE)) setEstadoFiltro(e as FiltroEstado);
+    const leer = () => {
+      const p = new URLSearchParams(window.location.search);
+      const a = p.get("accion");
+      setAccion(ACCIONES.some((x) => x.clave === a) ? (a as Accion) : null);
+      const e = p.get("estado") ?? (p.get("pendientes") === "1" ? "pendiente_importe" : null);
+      if (e && (e === "activas" || e === "todas" || e in FASE)) setEstadoFiltro(e as FiltroEstado);
+    };
+    leer();
+    const alCambiar = (ev: Event) => setAccion((ev as CustomEvent<Accion>).detail);
+    window.addEventListener("filtro-accion", alCambiar);
+    window.addEventListener("popstate", leer);
+    return () => {
+      window.removeEventListener("filtro-accion", alCambiar);
+      window.removeEventListener("popstate", leer);
+    };
   }, []);
-  const sinFechas = FASES_TAREA.includes(estadoFiltro);
+  const quitarAccion = () => {
+    window.history.pushState(null, "", "/");
+    setAccion(null);
+  };
+  const sinFechas = !!accion || FASES_TAREA.includes(estadoFiltro);
 
   // Espera a que se deje de escribir antes de lanzar la consulta.
   useEffect(() => {
@@ -821,9 +840,14 @@ export default function EntradasView({
       )
       .order("fecha_entrada", { ascending: false });
 
-    if (!sinFechas) query = query.gte("fecha_entrada", desde).lte("fecha_entrada", hasta);
-    if (estadoFiltro === "activas") query = query.neq("fase", "cancelada");
-    else if (estadoFiltro !== "todas") query = query.eq("fase", estadoFiltro);
+    if (accion) {
+      query = filtrarAccion(query, accion);
+      query = query.order("fecha_entrada", { ascending: true }); // lo más urgente primero
+    } else {
+      if (!sinFechas) query = query.gte("fecha_entrada", desde).lte("fecha_entrada", hasta);
+      if (estadoFiltro === "activas") query = query.neq("fase", "cancelada");
+      else if (estadoFiltro !== "todas") query = query.eq("fase", estadoFiltro);
+    }
 
     if (apartamentoId) query = query.eq("apartamento_id", apartamentoId);
     if (clienteId) query = query.eq("apartamentos.cliente_id", clienteId);
@@ -856,7 +880,7 @@ export default function EntradasView({
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada, estadoFiltro]);
+  }, [desde, hasta, apartamentoId, clienteId, origen, nochesMin, nochesMax, busquedaAplicada, estadoFiltro, accion]);
 
   return (
     <div>
@@ -994,7 +1018,19 @@ export default function EntradasView({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
+      {accion && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          <span>
+            <span className="font-medium">Pendientes: {ACCIONES.find((a) => a.clave === accion)?.etiqueta}</span>
+            <span className="text-amber-900/70"> · {ACCIONES.find((a) => a.clave === accion)?.ayuda}. Todas las fechas.</span>
+          </span>
+          <button type="button" onClick={quitarAccion} className="ml-auto text-xs underline">
+            Quitar filtro
+          </button>
+        </div>
+      )}
+
+      <div className={`mt-3 flex flex-wrap items-end gap-3 text-sm ${accion ? "hidden" : ""}`}>
         <div className="w-full sm:w-72">
           <label htmlFor="estado">Estado</label>
           <select
@@ -1033,7 +1069,8 @@ export default function EntradasView({
             const apartamento = r.apartamentos;
             const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
-            const conPasos = pasosAbiertos === r.id;
+            // Desde una acción pendiente los pasos van desplegados (salvo el importe, que tiene su burbuja).
+            const conPasos = accion && accion !== "importe" ? pasosAbiertos !== r.id : pasosAbiertos === r.id;
             const cliente = r.apartamentos?.cliente_id ? clientesPorId.get(r.apartamentos.cliente_id) : undefined;
             return (
               <div
@@ -1072,7 +1109,7 @@ export default function EntradasView({
                       <IndicadorPasos
                         reserva={r}
                         abierto={conPasos}
-                        onAbrir={() => setPasosAbiertos(conPasos ? null : r.id)}
+                        onAbrir={() => setPasosAbiertos(pasosAbiertos === r.id ? null : r.id)}
                       />
                     )}
                     {r.fase === "pendiente_importe" && <ImportePendiente reserva={r} onGuardado={cargar} />}

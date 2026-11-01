@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password", "/f/"];
 
@@ -17,25 +18,37 @@ const ITEMS_LATERAL = [
 // Menú superior (en móvil pasa a barra inferior): solo Entradas
 const ITEMS_SUPERIOR = [{ href: "/", etiqueta: "Entradas", icono: IconoEntradas }];
 
-// Nº de reservas confirmadas a las que les falta el importe con comisión.
+// Nº de reservas por tipo de acción pendiente (mismos criterios que el filtro del listado).
 function usePendientes(activo: boolean, pathname: string | null) {
-  const [n, setN] = useState(0);
+  const [cuentas, setCuentas] = useState<Partial<Record<Accion, number>>>({});
   useEffect(() => {
     if (!activo) return;
     const supabase = createClient();
     async function contar() {
-      const { count } = await supabase
-        .from("reservas")
-        .select("id", { count: "exact", head: true })
-        .eq("importe_pendiente", true)
-        .eq("estado", "confirmada");
-      setN(count ?? 0);
+      const resultados = await Promise.all(
+        ACCIONES.map(async (a) => {
+          const { count } = await filtrarAccion(
+            supabase.from("reservas").select("id", { count: "exact", head: true }),
+            a.clave,
+          );
+          return [a.clave, count ?? 0] as const;
+        }),
+      );
+      setCuentas(Object.fromEntries(resultados));
     }
     contar();
     window.addEventListener("pendientes-cambiados", contar);
     return () => window.removeEventListener("pendientes-cambiados", contar);
   }, [activo, pathname]);
-  return n;
+  return cuentas;
+}
+
+// Abre el listado de Entradas filtrado por una acción. Si ya estamos en Entradas, sin recargar.
+function irAAccion(e: React.MouseEvent, pathname: string | null, accion: Accion) {
+  if (pathname !== "/") return; // el enlace normal navega y el listado lee ?accion=
+  e.preventDefault();
+  window.history.pushState(null, "", `/?accion=${accion}`);
+  window.dispatchEvent(new CustomEvent("filtro-accion", { detail: accion }));
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -72,8 +85,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="flex flex-1 flex-col gap-1">
           {ITEMS_LATERAL.map((item) => (
+            <div key={item.href}>
             <Link
-              key={item.href}
               href={item.href}
               className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
                 activo(item.href)
@@ -85,22 +98,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <item.icono />
               <span className="hidden sm:inline">{item.etiqueta}</span>
             </Link>
+            {item.href === "/" && (
+              <ul className="mb-2 mt-1 space-y-0.5 sm:ml-3 sm:border-l sm:border-line sm:pl-2">
+                {ACCIONES.filter((a) => (pendientes[a.clave] ?? 0) > 0).map((a) => (
+                  <li key={a.clave}>
+                    <Link
+                      href={`/?accion=${a.clave}`}
+                      onClick={(e) => irAAccion(e, pathname, a.clave)}
+                      title={`${pendientes[a.clave]} · ${a.ayuda}`}
+                      className="flex items-center justify-center gap-2 rounded-md px-2 py-1 text-xs text-ink/70 hover:bg-amber-50 hover:text-ink sm:justify-between"
+                    >
+                      <span className="hidden truncate sm:inline">{a.etiqueta}</span>
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white">
+                        {pendientes[a.clave]}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            </div>
           ))}
-          {pendientes > 0 && (
-            <Link
-              href="/?estado=pendiente_importe"
-              onClick={() => {
-                if (pathname === "/") window.location.href = "/?estado=pendiente_importe";
-              }}
-              className="mt-1 flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-xs text-amber-900 hover:bg-amber-50 sm:justify-start"
-              title={`${pendientes} reservas sin importe con comisión`}
-            >
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white">
-                {pendientes}
-              </span>
-              <span className="hidden sm:inline">Pendientes</span>
-            </Link>
-          )}
         </nav>
         <button
           onClick={salir}
