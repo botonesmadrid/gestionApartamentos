@@ -312,7 +312,8 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
         {titular && <span className="text-ink/40"> · se cambia en la lista de huéspedes</span>}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        {!reserva.contrato_pdf_id ? (
+        {/* Solo el contrato generado para la firma y la carpeta (donde también queda el firmado). */}
+        {!reserva.contrato_pdf_id && !reserva.contrato_firmado_at && (
           <button
             type="button"
             disabled={generando || !titular}
@@ -321,39 +322,26 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
           >
             {generando ? "Generando…" : "Generar contrato PDF"}
           </button>
-        ) : (
-          <>
-            {pdfUrl && (
-              <a href={pdfUrl} target="_blank" rel="noreferrer" className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper">
-                Ver PDF
-              </a>
-            )}
-            {carpetaUrl && (
-              <a href={carpetaUrl} target="_blank" rel="noreferrer" className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink">
-                Abrir carpeta
-              </a>
-            )}
-            {reserva.contrato_firmado_pdf_id && (
-              <a
-                href={`https://drive.google.com/file/d/${reserva.contrato_firmado_pdf_id}/view`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-              >
-                Ver firmado
-              </a>
-            )}
-            {!reserva.contrato_firmado_at && (
-              <button type="button" disabled={generando} onClick={() => generar(true)} className="text-xs text-ink/50 underline hover:text-ink">
-                {generando ? "Generando…" : "Regenerar"}
-              </button>
-            )}
-          </>
+        )}
+        {pdfUrl && (
+          <a href={pdfUrl} target="_blank" rel="noreferrer" className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper">
+            Contrato para firma
+          </a>
+        )}
+        {carpetaUrl && (
+          <a href={carpetaUrl} target="_blank" rel="noreferrer" className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink">
+            Abrir carpeta
+          </a>
+        )}
+        {reserva.contrato_pdf_id && !reserva.contrato_firmado_at && (
+          <button type="button" disabled={generando} onClick={() => generar(true)} className="text-xs text-ink/50 underline hover:text-ink">
+            {generando ? "Generando…" : "Regenerar"}
+          </button>
         )}
       </div>
       <p className="mt-1.5 text-xs text-ink/50">
-        {reserva.contrato_firmado_pdf_id
-          ? "Firmado: el PDF de HelloSign se ha guardado en la carpeta de la reserva."
+        {reserva.contrato_firmado_at
+          ? "Firmado. El documento firmado está en la carpeta de la reserva."
           : generado
             ? `Generado el ${generado}. Súbelo a HelloSign; al firmarse se guardará y marcará solo.`
             : "Aún no generado"}
@@ -756,7 +744,10 @@ export default function EntradasView({
   const [origen, setOrigen] = useState("");
   const [nochesMin, setNochesMin] = useState("");
   const [nochesMax, setNochesMax] = useState("");
+  // Nº de filtros distintos de los de por defecto (se muestra en el botón "Filtros" del móvil).
+  const filtrosActivos = [apartamentoId, clienteId, origen, nochesMin, nochesMax].filter(Boolean).length;
   const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado>("activas");
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
 
@@ -896,6 +887,22 @@ export default function EntradasView({
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
+        {/* En el móvil el resto de filtros va plegado */}
+        <button
+          type="button"
+          onClick={() => setFiltrosAbiertos((v) => !v)}
+          aria-expanded={filtrosAbiertos}
+          className="-mt-1 mb-1 flex w-full items-center justify-between rounded-md border border-line px-3 py-2 text-sm text-ink/70 md:hidden"
+        >
+          <span>
+            Filtros
+            {filtrosActivos > 0 && (
+              <span className="ml-2 rounded-full bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-paper">{filtrosActivos}</span>
+            )}
+          </span>
+          <span aria-hidden>{filtrosAbiertos ? "▴" : "▾"}</span>
+        </button>
+        <div className={filtrosAbiertos ? "mt-3" : "hidden md:block"}>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">
           Fecha de entrada
         </p>
@@ -1015,6 +1022,7 @@ export default function EntradasView({
               />
             </div>
           </div>
+        </div>
         </div>
       </div>
 

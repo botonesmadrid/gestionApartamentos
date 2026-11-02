@@ -1,13 +1,22 @@
 {
-  "name": "Gestión de Apartamentos",
-  "short_name": "Apartamentos",
-  "description": "Reservas y huéspedes por apartamento",
-  "start_url": "/",
+  "id": "/",
+  "name": "El Botones · Gestión de apartamentos",
+  "short_name": "El Botones",
+  "description": "Reservas, huéspedes y contratos de los apartamentos",
+  "lang": "es",
+  "start_url": "/?origen=app",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#F7F6F2",
   "theme_color": "#1C2321",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Entradas", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Introducir importes", "url": "/?accion=importe", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

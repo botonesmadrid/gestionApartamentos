@@ -15,8 +15,6 @@ const ITEMS_LATERAL = [
   { href: "/admin/maestros", etiqueta: "Maestros", icono: IconoMaestros },
 ];
 
-// Menú superior (en móvil pasa a barra inferior): solo Entradas
-const ITEMS_SUPERIOR = [{ href: "/", etiqueta: "Entradas", icono: IconoEntradas }];
 
 // Nº de reservas por tipo de acción pendiente (mismos criterios que el filtro del listado).
 function usePendientes(activo: boolean, pathname: string | null) {
@@ -55,6 +53,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const ocultarNav = RUTAS_SIN_NAV.some((r) => pathname?.startsWith(r));
   const pendientes = usePendientes(!ocultarNav, pathname);
+  const [panelPendientes, setPanelPendientes] = useState(false);
+  const totalPendientes = Object.values(pendientes).reduce((n, x) => n + (x ?? 0), 0);
 
   if (ocultarNav) return <>{children}</>;
 
@@ -72,7 +72,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* Menú lateral */}
-      <aside className="flex w-16 flex-col items-center border-r border-line bg-white py-6 sm:w-56 sm:items-stretch sm:px-4">
+      <aside className="hidden w-56 flex-col items-stretch border-r border-line bg-white px-4 py-6 md:flex">
         <Link href="/" className="mb-8 flex justify-center px-2 sm:justify-start">
           <Image
             src="/logo-botones.jpg"
@@ -131,42 +131,87 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        {/* Menú superior: en escritorio arriba, en móvil se oculta aquí y aparece abajo */}
-        <header className="hidden border-b border-line bg-white px-6 py-3 md:block">
-          <nav className="flex gap-2 text-sm">
-            {ITEMS_SUPERIOR.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-md px-3 py-1.5 ${
-                  activo(item.href)
-                    ? "bg-ink text-paper"
-                    : "text-ink/60 hover:bg-paper hover:text-ink"
-                }`}
-              >
-                {item.etiqueta}
-              </Link>
-            ))}
-          </nav>
-        </header>
+        <main className="min-w-0 flex-1 pb-24 md:pb-0">{children}</main>
 
-        <main className="flex-1 pb-20 md:pb-0">{children}</main>
-
-        {/* Menú superior convertido en barra inferior en móvil */}
-        <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-white md:hidden">
-          {ITEMS_SUPERIOR.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-xs ${
-                activo(item.href) ? "text-ink" : "text-ink/40"
-              }`}
-            >
-              <item.icono />
-              {item.etiqueta}
-            </Link>
-          ))}
+        {/* Móvil: barra inferior tipo app (con margen para la zona segura del iPhone) */}
+        <nav
+          className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-white/95 backdrop-blur md:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <Link
+            href="/"
+            onClick={() => setPanelPendientes(false)}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname === "/" ? "text-ink" : "text-ink/45"}`}
+          >
+            <IconoEntradas />
+            Entradas
+          </Link>
+          <button
+            type="button"
+            onClick={() => setPanelPendientes((v) => !v)}
+            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${panelPendientes ? "text-ink" : "text-ink/45"}`}
+          >
+            <IconoPendientes />
+            Pendientes
+            {totalPendientes > 0 && (
+              <span className="absolute right-[calc(50%-1.4rem)] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                {totalPendientes}
+              </span>
+            )}
+          </button>
+          <Link
+            href="/admin/maestros"
+            onClick={() => setPanelPendientes(false)}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname?.startsWith("/admin/maestros") ? "text-ink" : "text-ink/45"}`}
+          >
+            <IconoMaestros />
+            Maestros
+          </Link>
+          <button type="button" onClick={salir} className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-ink/45">
+            <IconoSalir />
+            Salir
+          </button>
         </nav>
+
+        {/* Móvil: panel de pendientes por tipo de acción */}
+        {panelPendientes && (
+          <div className="fixed inset-0 z-30 bg-ink/30 md:hidden" onClick={() => setPanelPendientes(false)}>
+            <div
+              className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white px-4 pt-3 shadow-xl"
+              style={{ paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">Pendientes</p>
+              {totalPendientes === 0 ? (
+                <p className="py-4 text-sm text-ink/50">No hay nada pendiente. 🎉</p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {ACCIONES.filter((a) => (pendientes[a.clave] ?? 0) > 0).map((a) => (
+                    <li key={a.clave}>
+                      <Link
+                        href={`/?accion=${a.clave}`}
+                        onClick={(e) => {
+                          setPanelPendientes(false);
+                          irAAccion(e, pathname, a.clave);
+                        }}
+                        className="flex items-center justify-between gap-3 py-3"
+                      >
+                        <span>
+                          <span className="block text-sm font-medium">{a.etiqueta}</span>
+                          <span className="block text-xs text-ink/50">{a.ayuda}</span>
+                        </span>
+                        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-semibold text-white">
+                          {pendientes[a.clave]}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -177,6 +222,15 @@ function IconoEntradas() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="3" y="4" width="18" height="17" rx="2" />
       <path d="M3 9h18M8 2v4M16 2v4" />
+    </svg>
+  );
+}
+
+function IconoPendientes() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3a7 7 0 0 0-7 7v3.5L3.5 16h17L19 13.5V10a7 7 0 0 0-7-7Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
     </svg>
   );
 }
