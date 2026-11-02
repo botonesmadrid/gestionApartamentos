@@ -818,7 +818,7 @@ function EditarLinea({
         <p className="mt-0.5 text-xs text-ink/40">
           {linea
             ? "Se fijaron al crear la línea; cambiarlas aquí solo afecta a esta línea."
-            : "Déjalas vacías para usar las tarifas actuales del cliente (Maestros → Clientes)."}
+            : "Déjalas vacías para usar las tarifas actuales del cliente (Administración → Servicios por cliente)."}
         </p>
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Campo etiqueta="Facturado Botones">

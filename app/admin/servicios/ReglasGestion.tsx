@@ -29,7 +29,7 @@ const fecha = (iso: string) => iso.split("-").reverse().join("/");
 const BASES = { precio: "Precio de las reservas", precio_sin_comision: "Precio − comisión del portal" };
 const AMBITOS = { cliente: "Todo el cliente", piso: "Cada piso por separado" };
 
-export default function ReglasGestion() {
+export default function ReglasGestion({ clienteId }: { clienteId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [reglas, setReglas] = useState<Regla[]>([]);
@@ -43,6 +43,7 @@ export default function ReglasGestion() {
       supabase
         .from("reglas_gestion")
         .select("*, reglas_gestion_tramos(desde, importe)")
+        .eq("cliente_id", clienteId)
         .order("vigente_desde", { ascending: false }),
     ]);
     if (c.error || r.error) setError((c.error ?? r.error)!.message);
@@ -55,18 +56,18 @@ export default function ReglasGestion() {
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [clienteId]);
 
   const hoy = new Date().toISOString().slice(0, 10);
   const porCliente = clientes
-    .map((c) => ({ c, rs: reglas.filter((r) => r.cliente_id === c.id) }))
-    .filter((x) => x.rs.length > 0);
+    .filter((c) => c.id === clienteId)
+    .map((c) => ({ c, rs: reglas.filter((r) => r.cliente_id === c.id) }));
 
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-ink/60">
-          Cómo se factura la gestión de cada cliente. Para cambiar las condiciones a partir de una fecha, crea una
+          Cómo se factura la gestión de este cliente (por porcentaje o por tramos de facturación). Para cambiar las condiciones a partir de una fecha, crea una
           regla nueva con esa fecha de vigencia: los meses anteriores siguen calculándose con la regla antigua y lo ya
           consolidado no se modifica.
         </p>
@@ -89,10 +90,7 @@ export default function ReglasGestion() {
           return (
             <section key={c.id}>
               <div className="flex items-center justify-between gap-2">
-                <h2 className="font-semibold">
-                  {c.codigo ? `${c.codigo} · ` : ""}
-                  {c.nombre}
-                </h2>
+                <h2 className="text-sm font-semibold">Versiones de la regla</h2>
                 {vigente && (
                   <button
                     type="button"
@@ -106,6 +104,9 @@ export default function ReglasGestion() {
                   </button>
                 )}
               </div>
+              {rs.length === 0 && (
+                <p className="mt-2 text-sm text-ink/50">Este cliente no tiene reglas de gestión: no se genera gestión automática.</p>
+              )}
               <ul className="mt-2 space-y-2">
                 {rs.map((r) => (
                   <li key={r.id}>
@@ -156,6 +157,7 @@ export default function ReglasGestion() {
         <EditarRegla
           regla={editando === "nueva" ? null : editando}
           plantilla={plantilla}
+          clienteId={clienteId}
           clientes={clientes}
           onCerrar={() => setEditando(null)}
           onGuardado={() => {
@@ -176,12 +178,14 @@ function primeroMesSiguiente() {
 function EditarRegla({
   regla,
   plantilla,
+  clienteId,
   clientes,
   onCerrar,
   onGuardado,
 }: {
   regla: Regla | null;
   plantilla: Regla | null;
+  clienteId: string;
   clientes: Cliente[];
   onCerrar: () => void;
   onGuardado: () => void;
@@ -190,7 +194,7 @@ function EditarRegla({
   const base = regla ?? plantilla;
   const s = (v: unknown) => (v == null ? "" : String(v));
   const [f, setF] = useState({
-    cliente_id: base?.cliente_id ?? clientes[0]?.id ?? "",
+    cliente_id: clienteId,
     vigente_desde: regla?.vigente_desde ?? primeroMesSiguiente(),
     tipo: base?.tipo ?? "porcentaje",
     porcentaje: s(base?.porcentaje),
@@ -280,7 +284,7 @@ function EditarRegla({
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label>Cliente</label>
-            <select value={f.cliente_id} onChange={set("cliente_id")} disabled={!!regla}>
+            <select value={f.cliente_id} onChange={set("cliente_id")} disabled>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.codigo ? `${c.codigo} · ` : ""}

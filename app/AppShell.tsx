@@ -131,6 +131,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <IconoMaestros />
           <span>Maestros</span>
         </Link>
+        <Link
+          href="/admin/servicios"
+          className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
+            activo("/admin/servicios") ? "bg-ink text-paper" : "text-ink/60 hover:bg-paper hover:text-ink"
+          }`}
+        >
+          <IconoServicios />
+          <span>Servicios por cliente</span>
+        </Link>
       </nav>
       <button
         onClick={salir}
@@ -164,7 +173,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Image src="/logo-botones.jpg" alt="Botones" width={32} height={32} className="rounded" priority />
         </Link>
         <span className="text-sm font-medium md:hidden">
-          {MODULOS.find((m) => activo(m.href))?.etiqueta ?? (activo("/admin/maestros") ? "Maestros" : "")}
+          {MODULOS.find((m) => activo(m.href))?.etiqueta ??
+            (activo("/admin/maestros") ? "Maestros" : activo("/admin/servicios") ? "Servicios por cliente" : "")}
         </span>
         <nav className="ml-4 hidden h-14 items-stretch gap-1 md:flex">
           {MODULOS.map((m) => (
@@ -287,6 +297,17 @@ function IconoIngresos() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </svg>
+  );
+}
+
+function IconoServicios() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+      <circle cx="16" cy="6" r="2" />
+      <circle cx="10" cy="12" r="2" />
+      <circle cx="18" cy="18" r="2" />
     </svg>
   );
 }
