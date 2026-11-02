@@ -29,7 +29,12 @@ export default async function MaestrosLayout({ children }: { children: React.Rea
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <PestanasMaestros pestanas={MAESTROS.map(({ slug, titulo }) => ({ slug, titulo }))} />
+          <PestanasMaestros
+            pestanas={[
+              ...MAESTROS.map(({ slug, titulo }) => ({ slug, titulo })),
+              { slug: "reglas-gestion", titulo: "Reglas de gestión" },
+            ]}
+          />
         </aside>
         <div className="min-w-0">{children}</div>
       </div>

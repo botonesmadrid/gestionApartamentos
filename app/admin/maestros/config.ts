@@ -1,4 +1,4 @@
-export type TipoCampo = "text" | "select" | "numero";
+export type TipoCampo = "text" | "select" | "numero" | "sino";
 
 export interface CampoSelect {
   tabla: string;
@@ -66,6 +66,9 @@ export const MAESTROS: MaestroConfig[] = [
       { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos", tipo: "text", enlace: "carpeta" },
       { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato", tipo: "text", enlace: "documento" },
       // Ingresos: tarifas vigentes. Cada línea nueva copia estos valores; cambiarlos no altera el histórico.
+      { key: "genera_checkin", etiqueta: "Ingresos · Cada entrada genera línea de Check-in", tipo: "sino", enLista: false },
+      { key: "genera_limpieza", etiqueta: "Ingresos · Cada entrada genera línea de Limpieza", tipo: "sino", enLista: false },
+      { key: "pct_comision_gestion", etiqueta: "Ingresos · % comisión gestión", tipo: "numero", requerido: true, enLista: false },
       { key: "prefijo_ingresos", etiqueta: "Prefijo nº ingresos (si no, el código)", tipo: "text", enLista: false },
       { key: "tarifa_checkin", etiqueta: "Ingresos · Facturado por Checkin (€)", tipo: "numero", enLista: false },
       { key: "tarifa_limpieza", etiqueta: "Ingresos · Facturado por Limpieza (€)", tipo: "numero", enLista: false },

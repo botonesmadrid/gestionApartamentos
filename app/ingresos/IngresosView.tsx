@@ -301,6 +301,8 @@ export default function IngresosView({
         </button>
       </div>
 
+      {pestana === "gestion" && <GestionProvisional />}
+
       {/* Listado */}
       {cargando ? (
         <p className="py-10 text-center text-sm text-ink/40">Cargando…</p>
@@ -308,6 +310,8 @@ export default function IngresosView({
         <p className="py-10 text-center text-sm text-ink/40">
           No hay líneas para este filtro.
         </p>
+      ) : pestana === "gestion" ? (
+        <GestionAgrupada lineas={visibles} onEditar={setEditando} onRecalculado={cargar} />
       ) : (
         <>
           {/* Escritorio: tabla */}
@@ -959,6 +963,189 @@ function Dato({ k, v }: { k: string; v: string }) {
     <div className="flex justify-between gap-2">
       <dt className="text-ink/50">{k}</dt>
       <dd className="font-medium tabular-nums">{v}</dd>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Gestión: líneas agrupadas por cliente, piso y mes; importe provisional del mes en curso.
+
+const nombreMes = (iso: string) => {
+  const [a, m] = iso.split("-");
+  return `${MESES[Number(m) - 1]} ${a}`;
+};
+
+type Provisional = {
+  cliente_id: string;
+  cliente: string;
+  piso: string;
+  orden: number;
+  motivo: string;
+  importe: number;
+  facturacion: number;
+  regla_desde: string;
+};
+
+function GestionProvisional() {
+  const supabase = useMemo(() => createClient(), []);
+  const hoy = new Date();
+  const mes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
+  const [filas, setFilas] = useState<Provisional[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase.rpc("gestion_provisional", { p_mes: mes }).then(({ data, error: err }) => {
+      if (err) setError(err.message);
+      setFilas((data as Provisional[]) ?? []);
+    });
+  }, [supabase, mes]);
+
+  const grupos = useMemo(() => {
+    const m = new Map<string, Provisional[]>();
+    for (const f of filas ?? []) {
+      const k = `${f.cliente}|${f.piso}`;
+      m.set(k, [...(m.get(k) ?? []), f]);
+    }
+    return Array.from(m.values());
+  }, [filas]);
+
+  return (
+    <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">Gestión provisional · {nombreMes(mes)}</h2>
+        <p className="text-xs text-ink/50">
+          Calculada con las entradas registradas hasta hoy. Se consolida al cerrar el mes.
+        </p>
+      </div>
+      {error && <p className="mt-2 text-sm text-clay">{error}</p>}
+      {filas === null ? (
+        <p className="mt-2 text-sm text-ink/40">Calculando…</p>
+      ) : grupos.length === 0 ? (
+        <p className="mt-2 text-sm text-ink/40">Ningún cliente tiene reglas de gestión vigentes.</p>
+      ) : (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {grupos.map((g) => (
+            <div key={`${g[0].cliente}|${g[0].piso}`} className="rounded-md border border-line bg-white p-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="font-medium">
+                  {g[0].cliente} · {g[0].piso}
+                </p>
+                <p className="text-lg font-semibold tabular-nums">{eur(g.reduce((s, f) => s + Number(f.importe), 0))}</p>
+              </div>
+              <p className="text-xs text-ink/50">
+                Facturación del mes {eur(g[0].facturacion)} · regla desde {fecha(g[0].regla_desde)}
+              </p>
+              {g.length > 1 && (
+                <ul className="mt-2 space-y-0.5 text-xs text-ink/70">
+                  {g.map((f) => (
+                    <li key={f.orden} className="flex justify-between gap-2">
+                      <span className="truncate">{f.motivo}</span>
+                      <span className="tabular-nums">{num(f.importe)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function GestionAgrupada({
+  lineas,
+  onEditar,
+  onRecalculado,
+}: {
+  lineas: Linea[];
+  onEditar: (l: Linea) => void;
+  onRecalculado: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [recalculando, setRecalculando] = useState("");
+  const [error, setError] = useState("");
+
+  const grupos = useMemo(() => {
+    const m = new Map<string, Linea[]>();
+    for (const l of lineas) {
+      const k = `${l.entrada?.slice(0, 7) ?? "—"}|${l.cliente}|${l.piso ?? "—"}`;
+      m.set(k, [...(m.get(k) ?? []), l]);
+    }
+    // Más reciente primero; dentro del mes, por cliente y piso.
+    return Array.from(m.entries())
+      .sort(([a], [b]) => {
+        const [ma, ...ra] = a.split("|");
+        const [mb, ...rb] = b.split("|");
+        return mb.localeCompare(ma) || ra.join().localeCompare(rb.join());
+      })
+      .map(([k, ls]) => ({ k, ls }));
+  }, [lineas]);
+
+  async function recalcular(l: Linea) {
+    if (!l.entrada) return;
+    const mes = `${l.entrada.slice(0, 7)}-01`;
+    if (!window.confirm(`¿Recalcular la gestión de ${l.cliente} de ${nombreMes(mes)} con las reglas y entradas actuales?`)) return;
+    setRecalculando(l.cliente_id + mes);
+    setError("");
+    const { error: err } = await supabase.rpc("recalcular_gestion", { p_mes: mes, p_cliente: l.cliente_id });
+    setRecalculando("");
+    if (err) return setError(err.message);
+    onRecalculado();
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      {error && <p className="text-sm text-clay">{error}</p>}
+      {grupos.map(({ k, ls }) => {
+        const l0 = ls[0];
+        const deRegla = ls.some((l) => l.origen_datos === "regla");
+        const mes = l0.entrada ? `${l0.entrada.slice(0, 7)}-01` : "";
+        return (
+          <section key={k} className="overflow-hidden rounded-lg border border-line bg-white">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-paper px-4 py-2">
+              <p className="text-sm font-semibold">
+                {l0.cliente} · {l0.piso ?? "—"} · {mes ? nombreMes(mes) : "Sin fecha"}
+              </p>
+              <div className="flex items-center gap-3 text-sm">
+                {deRegla && (
+                  <button
+                    type="button"
+                    onClick={() => recalcular(l0)}
+                    disabled={!!recalculando}
+                    className="text-xs text-ink/60 underline hover:text-ink disabled:opacity-50"
+                  >
+                    {recalculando === l0.cliente_id + mes ? "Recalculando…" : "Recalcular"}
+                  </button>
+                )}
+                <span className="font-semibold tabular-nums">{eur(suma(ls, "facturado_neto"))}</span>
+              </div>
+            </header>
+            <ul className="divide-y divide-line">
+              {ls.map((l) => (
+                <li key={l.id}>
+                  <button
+                    type="button"
+                    onClick={() => onEditar(l)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-paper"
+                  >
+                    <span className="min-w-0 truncate">
+                      {l.motivo ?? "—"}
+                      {l.servicio === "Servicios" && (
+                        <span className="ml-2 rounded bg-sky-100 px-1 text-xs text-sky-900">Servicios</span>
+                      )}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-4 tabular-nums">
+                      {l.coste_mo_bruto != null && <span className="text-xs text-ink/50">MO {num(l.coste_mo_bruto)}</span>}
+                      <span>{num(l.facturado_neto)}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }
