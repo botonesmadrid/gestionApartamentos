@@ -63,6 +63,7 @@ export const MAESTROS: MaestroConfig[] = [
       { key: "nombre", etiqueta: "Nombre", tipo: "text", requerido: true },
       { key: "email", etiqueta: "Email", tipo: "text" },
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },
+      { key: "emails_facturacion", etiqueta: "Emails para enviar las facturas (separados por comas)", tipo: "text", enLista: false },
       { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos", tipo: "text", enlace: "carpeta" },
       { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato", tipo: "text", enlace: "documento" },
     ],

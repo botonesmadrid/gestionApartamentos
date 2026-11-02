@@ -159,6 +159,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <IconoServicios />
           <span>Servicios por cliente</span>
         </Link>
+        <Link
+          href="/admin/facturacion"
+          className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
+            activo("/admin/facturacion") ? "bg-ink text-paper" : "text-ink/60 hover:bg-paper hover:text-ink"
+          }`}
+        >
+          <IconoFacturacion />
+          <span>Facturación</span>
+        </Link>
       </nav>
       <button
         onClick={salir}
@@ -205,7 +214,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <span className="text-sm font-medium md:hidden">
           {MODULOS.find((m) => activo(m.href))?.etiqueta ??
-            (activo("/admin/maestros") ? "Maestros" : activo("/admin/servicios") ? "Servicios por cliente" : "")}
+            (activo("/admin/maestros")
+              ? "Maestros"
+              : activo("/admin/servicios")
+                ? "Servicios por cliente"
+                : activo("/admin/facturacion")
+                  ? "Config. facturación"
+                  : "")}
         </span>
         <nav className="hidden h-14 items-stretch gap-1 overflow-x-auto md:flex">
           {MODULOS.map((m) => (
