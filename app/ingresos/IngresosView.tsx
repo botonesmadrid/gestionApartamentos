@@ -1085,7 +1085,13 @@ function GestionAgrupada({
   async function recalcular(l: Linea) {
     if (!l.entrada) return;
     const mes = `${l.entrada.slice(0, 7)}-01`;
-    if (!window.confirm(`¿Recalcular la gestión de ${l.cliente} de ${nombreMes(mes)} con las reglas y entradas actuales?`)) return;
+    if (
+      !window.confirm(
+        `¿Recalcular la gestión de ${l.cliente} de ${nombreMes(mes)} con las reglas y entradas actuales?\n\n` +
+          "Las líneas automáticas se rehacen (se pierden los importes que hayas cambiado en ellas). Las líneas añadidas a mano se mantienen.",
+      )
+    )
+      return;
     setRecalculando(l.cliente_id + mes);
     setError("");
     const { error: err } = await supabase.rpc("recalcular_gestion", { p_mes: mes, p_cliente: l.cliente_id });
@@ -1123,23 +1129,22 @@ function GestionAgrupada({
             </header>
             <ul className="divide-y divide-line">
               {ls.map((l) => (
-                <li key={l.id}>
-                  <button
-                    type="button"
-                    onClick={() => onEditar(l)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-paper"
-                  >
-                    <span className="min-w-0 truncate">
-                      {l.motivo ?? "—"}
-                      {l.servicio === "Servicios" && (
-                        <span className="ml-2 rounded bg-sky-100 px-1 text-xs text-sky-900">Servicios</span>
-                      )}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-4 tabular-nums">
-                      {l.coste_mo_bruto != null && <span className="text-xs text-ink/50">MO {num(l.coste_mo_bruto)}</span>}
-                      <span>{num(l.facturado_neto)}</span>
-                    </span>
+                <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-1.5 text-sm hover:bg-paper">
+                  <button type="button" onClick={() => onEditar(l)} className="min-w-0 flex-1 truncate py-1 text-left">
+                    {l.motivo ?? "—"}
+                    {l.origen_datos === "regla" ? (
+                      <span className="ml-2 rounded bg-emerald-50 px-1 text-xs text-emerald-800">auto</span>
+                    ) : l.origen_datos === "manual" ? (
+                      <span className="ml-2 rounded bg-amber-50 px-1 text-xs text-amber-800">manual</span>
+                    ) : null}
+                    {l.servicio === "Servicios" && (
+                      <span className="ml-2 rounded bg-sky-100 px-1 text-xs text-sky-900">Servicios</span>
+                    )}
                   </button>
+                  <span className="flex shrink-0 items-center gap-3 tabular-nums">
+                    {l.coste_mo_bruto != null && <span className="text-xs text-ink/50">MO {num(l.coste_mo_bruto)}</span>}
+                    <ImporteEditable linea={l} onGuardado={onRecalculado} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1147,5 +1152,43 @@ function GestionAgrupada({
         );
       })}
     </div>
+  );
+}
+
+// Importe (Facturado Botones bruto) editable en la propia línea: se guarda al salir del campo.
+function ImporteEditable({ linea, onGuardado }: { linea: Linea; onGuardado: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const inicial = linea.facturado_bruto == null ? "" : String(linea.facturado_bruto).replace(".", ",");
+  const [v, setV] = useState(inicial);
+  const [estado, setEstado] = useState<"" | "guardando" | "error">("");
+
+  async function guardar() {
+    if (v === inicial) return;
+    const n = v.trim() === "" ? null : Number(v.replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."));
+    if (n != null && Number.isNaN(n)) {
+      setEstado("error");
+      return;
+    }
+    setEstado("guardando");
+    const { error } = await supabase.from("ingresos").update({ facturado_bruto: n }).eq("id", linea.id);
+    setEstado(error ? "error" : "");
+    if (!error) onGuardado();
+  }
+
+  return (
+    <input
+      aria-label={`Importe de ${linea.motivo ?? "la línea"}`}
+      inputMode="decimal"
+      value={v}
+      onChange={(e) => {
+        setV(e.target.value);
+        setEstado("");
+      }}
+      onBlur={guardar}
+      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+      disabled={estado === "guardando"}
+      title={estado === "error" ? "No se ha podido guardar: revisa el número" : "Importe facturado (editable)"}
+      className={`w-28 rounded border px-2 py-1 text-right ${estado === "error" ? "border-clay" : "border-line"}`}
+    />
   );
 }
