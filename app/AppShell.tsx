@@ -56,6 +56,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const ocultarNav = RUTAS_SIN_NAV.some((r) => pathname?.startsWith(r));
   const pendientes = usePendientes(!ocultarNav, pathname);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  // Menú lateral fijo (pantallas grandes): se puede esconder; se recuerda en este navegador.
+  const [lateralVisible, setLateralVisible] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("menu-lateral") === "oculto") setLateralVisible(false);
+    } catch {}
+  }, []);
+  function alternarMenu() {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      setLateralVisible((v) => {
+        try {
+          localStorage.setItem("menu-lateral", v ? "oculto" : "visible");
+        } catch {}
+        return !v;
+      });
+    } else {
+      setMenuAbierto(true);
+    }
+  }
   const totalPendientes = Object.values(pendientes).reduce((n, x) => n + (x ?? 0), 0);
 
   // Al navegar se cierra el menú lateral desplegable.
@@ -152,31 +171,43 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Cabecera: en escritorio lleva los módulos; en móvil solo el botón del menú lateral */}
+    <div className="flex min-h-screen">
+      {/* Menú lateral fijo en pantallas grandes (se esconde con el botón ☰ de la barra superior) */}
+      {lateralVisible && (
+        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-line bg-white px-4 pb-6 lg:flex">
+          <Link href="/" className="flex h-14 shrink-0 items-center px-2">
+            <Image src="/logo-botones.jpg" alt="Botones" width={32} height={32} className="rounded" priority />
+          </Link>
+          <div className="mt-4 flex-1">{menuLateral}</div>
+        </aside>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+      {/* Cabecera: en escritorio lleva los módulos (a la derecha del menú lateral); en móvil, el botón del menú */}
       <header
         className="sticky top-0 z-40 flex items-center gap-3 border-b border-line bg-white/95 px-3 backdrop-blur md:px-4"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <button
           type="button"
-          onClick={() => setMenuAbierto(true)}
-          aria-label="Abrir menú"
-          className="relative -ml-1 rounded-md p-2 text-ink/70 hover:bg-paper lg:hidden"
+          onClick={alternarMenu}
+          aria-label={lateralVisible ? "Esconder o abrir el menú" : "Mostrar el menú"}
+          title="Menú"
+          className="relative -ml-1 rounded-md p-2 text-ink/70 hover:bg-paper"
         >
           <IconoMenu />
           {totalPendientes > 0 && (
             <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500" />
           )}
         </button>
-        <Link href="/" className="flex shrink-0 items-center py-2">
+        <Link href="/" className={`flex shrink-0 items-center py-2 ${lateralVisible ? "lg:hidden" : ""}`}>
           <Image src="/logo-botones.jpg" alt="Botones" width={32} height={32} className="rounded" priority />
         </Link>
         <span className="text-sm font-medium md:hidden">
           {MODULOS.find((m) => activo(m.href))?.etiqueta ??
             (activo("/admin/maestros") ? "Maestros" : activo("/admin/servicios") ? "Servicios por cliente" : "")}
         </span>
-        <nav className="ml-4 hidden h-14 items-stretch gap-1 md:flex">
+        <nav className="hidden h-14 items-stretch gap-1 overflow-x-auto md:flex">
           {MODULOS.map((m) => (
             <Link
               key={m.href}
@@ -196,12 +227,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </header>
-
-      <div className="flex flex-1">
-        {/* Menú lateral fijo en pantallas grandes */}
-        <aside className="hidden w-60 shrink-0 border-r border-line bg-white px-4 py-6 lg:block">
-          <div className="sticky top-20">{menuLateral}</div>
-        </aside>
 
         <main className="min-w-0 flex-1 pb-24 md:pb-0">{children}</main>
       </div>
