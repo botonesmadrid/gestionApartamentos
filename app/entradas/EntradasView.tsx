@@ -93,7 +93,7 @@ type Reserva = {
   huespedes: Huesped[] | null;
 };
 
-type Rango = "ultimos31" | "mesActual" | "personalizado";
+type Rango = "recientes" | "proximas" | "ultimos31" | "mesActual" | "personalizado";
 
 // Fases del flujo de una reserva (columna calculada reservas.fase).
 type Fase =
@@ -725,9 +725,10 @@ export default function EntradasView({
 }) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [rango, setRango] = useState<Rango>("ultimos31");
+  // Por defecto: lo de los últimos 30 días y lo que llega en los próximos 60.
+  const [rango, setRango] = useState<Rango>("recientes");
   const [desde, setDesde] = useState(sumarDias(hoyISO(), -30));
-  const [hasta, setHasta] = useState(hoyISO());
+  const [hasta, setHasta] = useState(sumarDias(hoyISO(), 60));
 
   const [apartamentoId, setApartamentoId] = useState("");
   const [clienteId, setClienteId] = useState("");
@@ -800,7 +801,13 @@ export default function EntradasView({
 
   function elegirRango(r: Rango) {
     setRango(r);
-    if (r === "ultimos31") {
+    if (r === "recientes") {
+      setDesde(sumarDias(hoyISO(), -30));
+      setHasta(sumarDias(hoyISO(), 60));
+    } else if (r === "proximas") {
+      setDesde(hoyISO());
+      setHasta(sumarDias(hoyISO(), 90));
+    } else if (r === "ultimos31") {
       setDesde(sumarDias(hoyISO(), -30));
       setHasta(hoyISO());
     } else if (r === "mesActual") {
@@ -964,6 +971,24 @@ export default function EntradasView({
           Fecha de entrada
         </p>
         <div className="flex flex-wrap gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => elegirRango("recientes")}
+            className={`rounded-md px-3 py-1.5 ${
+              rango === "recientes" ? "bg-ink text-paper" : "border border-line text-ink/70"
+            }`}
+          >
+            Recientes y próximas
+          </button>
+          <button
+            type="button"
+            onClick={() => elegirRango("proximas")}
+            className={`rounded-md px-3 py-1.5 ${
+              rango === "proximas" ? "bg-ink text-paper" : "border border-line text-ink/70"
+            }`}
+          >
+            Próximas (90 días)
+          </button>
           <button
             type="button"
             onClick={() => elegirRango("ultimos31")}
