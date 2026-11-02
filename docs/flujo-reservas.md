@@ -46,3 +46,24 @@ check-in completado. Las reservas futuras del Sheet quedan pendientes del contra
 Cada reserva muestra `Importe › Huéspedes x/N › Contrato › Check-in` (verde = hecho, ámbar = siguiente,
 gris = después). Al pulsar se despliegan debajo las acciones: enviar formulario, nº de huéspedes,
 marcar contrato, check-in, cancelar/reactivar. El detalle queda solo para consultar datos.
+
+## Contratos (Drive + HelloSign)
+
+- Configuración por cliente en Maestros → Clientes: carpeta raíz de contratos y plantilla de Google Docs
+  (se puede pegar el enlace; hay botones para abrirlas).
+- "Generar contrato PDF" (Edge Function `generar-contrato`): copia la plantilla, rellena los marcadores
+  (`NOMBRE`, `APELLIDO1/2`, `DOMICILIO`, `MUNICIPIO`/`MUNICIPIOEXT`, `CODIGOPOSTAL`, `PAIS`, `DNI`, `PISO`,
+  `NUMREGISTRO`, `MOTIVO`, `DURACION`, `INICIO`, `FIN`, `IMPORTE`, `FECHA`) con los datos del **titular**
+  y guarda `Contrato_temporal_<piso>_<titular>_<fecha>_PTE_Firma.pdf` en
+  `<raíz>/CONTRATOS DE ALQUILER <año>/<MM>.- <MES>/<DD>_<titular>_<piso>/` (fecha de entrada).
+- Se sube a mano a HelloSign. El correo "X firmó …" se procesa solo: el PDF firmado se guarda en la
+  carpeta de la reserva y el contrato queda marcado como firmado.
+- En la app se ven solo "Contrato para firma" y "Abrir carpeta".
+- Histórico: el 2 de noviembre de 2026 se vincularon 586 de 626 reservas del Sheet con su carpeta en
+  Drive (las carpetas con varios candidatos o sin PDF se dejaron sin vincular).
+
+## Web app móvil
+
+- Instalable (manifest + service worker `public/sw.js`): en el móvil, "Añadir a pantalla de inicio".
+- El service worker solo cachea recursos estáticos; los datos siempre vienen de la red.
+- En el móvil: barra inferior (Entradas, Pendientes, Maestros, Salir) y filtros plegados.
