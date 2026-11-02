@@ -5,6 +5,7 @@
 //   - pdf: devuelve el PDF (application/octet-stream).
 //   - enviar: lo envía desde hola@botonesmadrid.com (Gmail API) a "para" o, si no se indica, a los emails
 //     de facturación del cliente, con el asunto y cuerpo de la plantilla (Administración → Facturación).
+//     Si la factura no estaba emitida, se emite antes de enviarla: desde ese momento queda fija.
 // Secretos: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "npm:pdf-lib@1.17.1";
@@ -95,6 +96,9 @@ async function construirPdf(f: any, lineas: any[], conf: any, reporting: any[]):
     ...partir(`Direccion / Address: ${f.destinatario_direccion ?? ""}`, neg, 9.5, 340),
     `Invoice Number ${f.numero}`,
     `Invoice Date: ${ddmmyyyy(f.fecha)}`,
+    ...(f.tipo === "rectificativa"
+      ? [`FACTURA RECTIFICATIVA / CORRECTIVE INVOICE de la nº ${f.rectifica_numero ?? ""}`, ...partir(f.motivo_rectificacion ? `Motivo: ${f.motivo_rectificacion}` : "", neg, 9.5, 340).filter(Boolean)]
+      : []),
   ];
   datos.forEach((l, i) => t(l, M, y - i * 15, { size: 9.5, font: neg }));
   y -= datos.length * 15 + 30;
@@ -258,6 +262,10 @@ Deno.serve(async (req) => {
 
   const { data: f, error } = await usuario.from("facturas").select("*").eq("id", cuerpo.id ?? "").single();
   if (error || !f) return json({ error: "factura" }, 404);
+  if (f.rectifica_id) {
+    const { data: o } = await usuario.from("facturas").select("numero").eq("id", f.rectifica_id).maybeSingle();
+    f.rectifica_numero = o?.numero ?? null;
+  }
   const [{ data: lineas }, { data: conf }, { data: cliente }] = await Promise.all([
     usuario.from("facturas_lineas").select("*").eq("factura_id", f.id).order("orden"),
     usuario.from("configuracion_facturacion").select("*").eq("id", 1).maybeSingle(),
@@ -293,7 +301,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (f.estado !== "emitida") return json({ error: "no_emitida" }, 409);
+  if (f.estado === "anulada") return json({ error: "anulada" }, 409);
   const para = (cuerpo.para?.trim() || cliente?.emails_facturacion || "")
     .split(/[,;\s]+/)
     .map((x: string) => x.trim())
@@ -309,6 +317,11 @@ Deno.serve(async (req) => {
     cliente: cliente?.nombre ?? "",
     fecha: ddmmyyyy(f.fecha),
   };
+  // Al enviarse, la factura queda fija (emitida y anotada en el libro de facturas).
+  if (f.estado === "borrador") {
+    const { error: errEmitir } = await usuario.rpc("emitir_factura", { p_factura: f.id });
+    if (errEmitir) return json({ error: "emitir", detalle: errEmitir.message }, 409);
+  }
   const asunto = rellenar(conf?.plantilla_asunto || "Factura {{numero}}", vars);
   const texto = rellenar(conf?.plantilla_cuerpo || "Adjuntamos la factura {{numero}}.", vars);
 

@@ -1,7 +1,7 @@
 "use client";
 
-// Ficha de una factura: vista tipo factura, edición de líneas mientras está en borrador, emisión,
-// PDF (con el detalle de reservas del periodo) y envío por email.
+// Ficha de una factura: mientras no se envía se puede editar y volver a generar; al enviarla (o fijarla sin
+// enviar) queda emitida y fija, y solo se corrige con una factura rectificativa por diferencias.
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +27,9 @@ type Factura = {
   total: number;
   estado: "borrador" | "emitida" | "anulada";
   origen: "app" | "historico";
+  tipo: "ordinaria" | "rectificativa";
+  rectifica_id: string | null;
+  motivo_rectificacion: string | null;
   enviada_at: string | null;
   enviada_a: string | null;
   notas: string | null;
@@ -67,6 +70,8 @@ export default function FacturaDetalle({ id }: { id: string }) {
   const [ocupado, setOcupado] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [para, setPara] = useState("");
+  const [rectificada, setRectificada] = useState<{ id: string; numero: string } | null>(null);
+  const [rectificativas, setRectificativas] = useState<{ id: string; numero: string; estado: string }[]>([]);
 
   async function cargar() {
     const { data: fac, error: err } = await supabase.from("facturas").select("*").eq("id", id).single();
@@ -74,6 +79,12 @@ export default function FacturaDetalle({ id }: { id: string }) {
     setF(fac as Factura);
     const { data: ls } = await supabase.from("facturas_lineas").select("*").eq("factura_id", id).order("orden");
     setLineas((ls as Linea[]) ?? []);
+    if (fac.rectifica_id) {
+      const { data: o } = await supabase.from("facturas").select("id, numero").eq("id", fac.rectifica_id).single();
+      setRectificada(o ?? null);
+    } else setRectificada(null);
+    const { data: rs } = await supabase.from("facturas").select("id, numero, estado").eq("rectifica_id", id).order("created_at");
+    setRectificativas(rs ?? []);
     if (fac.cliente_id) {
       const { data: c } = await supabase.from("clientes").select("emails_facturacion").eq("id", fac.cliente_id).single();
       setEmails(c?.emails_facturacion ?? "");
@@ -141,9 +152,11 @@ export default function FacturaDetalle({ id }: { id: string }) {
       const textos: Record<string, string> = {
         sin_destinatarios: "No hay destinatarios: añade los emails de facturación del cliente (Maestros → Clientes) o escríbelos aquí.",
         email_invalido: "Algún email no es válido.",
-        no_emitida: "Emite la factura antes de enviarla.",
-        gmail: "Gmail no ha aceptado el envío. Vuelve a intentarlo más tarde.",
+
+        gmail: "Gmail no ha aceptado el envío. La factura ya ha quedado emitida: vuelve a enviarla más tarde con «Reenviar por email».",
+        emitir: "No se ha podido emitir la factura.",
       };
+      cargar();
       return setError(textos[detalle] ?? "No se ha podido enviar la factura.");
     }
     setEnviando(false);
@@ -158,16 +171,20 @@ export default function FacturaDetalle({ id }: { id: string }) {
           ← Facturación
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          {editable && f.serie_id && (
+          {editable && (
             <button
               type="button"
               disabled={!!ocupado}
               onClick={() =>
-                accion("regen", async () => await supabase.rpc("generar_facturas", { p_mes: f.periodo_desde, p_cliente: f.cliente_id }), "Factura rehecha con los datos actuales de Ingresos (las líneas manuales se mantienen).")
+                accion(
+                  "regen",
+                  async () => await supabase.rpc("regenerar_factura", { p_factura: f.id }),
+                  "Factura generada de nuevo con los datos actuales de Ingresos y de la configuración (las líneas añadidas a mano se mantienen).",
+                )
               }
               className="rounded-md border border-line bg-white px-3 py-1.5 text-sm hover:bg-paper disabled:opacity-50"
             >
-              {ocupado === "regen" ? "Recalculando…" : "Recalcular desde Ingresos"}
+              {ocupado === "regen" ? "Generando…" : "Volver a generar"}
             </button>
           )}
           {editable && (
@@ -175,12 +192,31 @@ export default function FacturaDetalle({ id }: { id: string }) {
               type="button"
               disabled={!!ocupado}
               onClick={() => {
-                if (!window.confirm(`¿Emitir la factura ${f.numero} por ${eur(f.total)}? Después ya no se podrá modificar y se anotará en el libro de facturas.`)) return;
-                accion("emitir", async () => await supabase.rpc("emitir_factura", { p_factura: f.id }), "Factura emitida y anotada en Gastos → Facturas.");
+                if (!window.confirm(`¿Fijar la factura ${f.numero} sin enviarla por email? Quedará emitida, se anotará en el libro de facturas y ya no se podrá modificar (solo con una rectificativa).`)) return;
+                accion("emitir", async () => await supabase.rpc("emitir_factura", { p_factura: f.id }), "Factura fijada y anotada en Gastos → Facturas.");
               }}
-              className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-paper disabled:opacity-50"
+              className="rounded-md border border-line bg-white px-3 py-1.5 text-sm hover:bg-paper disabled:opacity-50"
             >
-              Emitir
+              Fijar sin enviar
+            </button>
+          )}
+          {f.estado === "emitida" && (
+            <button
+              type="button"
+              disabled={!!ocupado}
+              onClick={async () => {
+                const motivo = window.prompt(`Rectificativa de la factura ${f.numero}. Motivo de la rectificación (aparece en la factura):`, "");
+                if (motivo === null) return;
+                setOcupado("rect");
+                setError("");
+                const { data, error: err } = await supabase.rpc("crear_rectificativa", { p_factura: f.id, p_motivo: motivo });
+                setOcupado("");
+                if (err) return setError(err.message);
+                window.location.href = `/facturacion/${data}`;
+              }}
+              className="rounded-md border border-line bg-white px-3 py-1.5 text-sm hover:bg-paper disabled:opacity-50"
+            >
+              {ocupado === "rect" ? "Creando…" : "Crear rectificativa"}
             </button>
           )}
           <button
@@ -191,7 +227,7 @@ export default function FacturaDetalle({ id }: { id: string }) {
           >
             {ocupado === "pdf" ? "Generando…" : "Descargar PDF"}
           </button>
-          {f.estado === "emitida" && f.origen === "app" && (
+          {f.origen === "app" && (
             <button
               type="button"
               onClick={() => {
@@ -219,6 +255,7 @@ export default function FacturaDetalle({ id }: { id: string }) {
           <input id="para" value={para} onChange={(e) => setPara(e.target.value)} placeholder="cliente@ejemplo.com" />
           <p className="mt-1 text-xs text-ink/50">
             Se envía desde hola@botonesmadrid.com con la plantilla de Administración → Facturación y el PDF adjunto.
+            {f.estado === "borrador" && " Al enviarla, la factura queda fija: después solo se puede corregir con una rectificativa."}
           </p>
           <div className="mt-3 flex justify-end gap-3">
             <button type="button" onClick={() => setEnviando(false)} className="text-sm text-ink/60 hover:text-ink">
@@ -235,7 +272,32 @@ export default function FacturaDetalle({ id }: { id: string }) {
       <article className="mt-4 rounded-lg border border-line bg-white p-5 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="font-display text-2xl font-semibold">Factura {f.numero}</h1>
+            <h1 className="font-display text-2xl font-semibold">
+              {f.tipo === "rectificativa" ? "Factura rectificativa" : "Factura"} {f.numero}
+            </h1>
+            {rectificada && (
+              <p className="mt-1 text-sm">
+                Rectifica la factura{" "}
+                <Link href={`/facturacion/${rectificada.id}`} className="underline">
+                  {rectificada.numero}
+                </Link>
+                {f.motivo_rectificacion && <span className="text-ink/60"> · {f.motivo_rectificacion}</span>}
+              </p>
+            )}
+            {rectificativas.length > 0 && (
+              <p className="mt-1 text-sm">
+                Rectificada por{" "}
+                {rectificativas.map((r, i) => (
+                  <span key={r.id}>
+                    {i > 0 && ", "}
+                    <Link href={`/facturacion/${r.id}`} className="underline">
+                      {r.numero}
+                    </Link>
+                    {r.estado === "borrador" && " (sin enviar)"}
+                  </span>
+                ))}
+              </p>
+            )}
             <p className="mt-1 text-sm text-ink/60">
               {fecha(f.fecha)} · {periodo(f.periodo_desde)}
             </p>

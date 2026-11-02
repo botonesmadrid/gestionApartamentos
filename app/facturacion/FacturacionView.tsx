@@ -18,6 +18,7 @@ type Factura = {
   total: number;
   estado: "borrador" | "emitida" | "anulada";
   origen: "app" | "historico";
+  tipo: "ordinaria" | "rectificativa";
   enviada_at: string | null;
   series_facturacion: { nombre: string; codigo: string } | null;
 };
@@ -27,13 +28,20 @@ const eur = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 const fecha = (iso: string) => iso.split("-").reverse().join("/");
 
-export function EstadoFactura({ f }: { f: { estado: string; origen: string; enviada_at: string | null } }) {
-  if (f.estado === "borrador") return <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">Borrador</span>;
+export function EstadoFactura({ f }: { f: { estado: string; origen: string; enviada_at: string | null; tipo?: string } }) {
+  const rect = f.tipo === "rectificativa" && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-900">Rectificativa</span>;
+  if (f.estado === "borrador")
+    return (
+      <span className="inline-flex gap-1">
+        {rect}
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">Sin enviar</span>
+      </span>
+    );
   if (f.estado === "anulada") return <span className="rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-900">Anulada</span>;
   return (
     <span className="inline-flex gap-1">
-      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-900">{f.origen === "historico" ? "Histórico" : "Emitida"}</span>
-      {f.enviada_at && <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-900">Enviada</span>}
+      {rect}
+      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-900">{f.origen === "historico" ? "Histórico" : f.enviada_at ? "Enviada" : "Emitida"}</span>
     </span>
   );
 }
@@ -50,8 +58,10 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [genMes, setGenMes] = useState(`${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, "0")}`);
-  const [genCliente, setGenCliente] = useState("");
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const [genDesde, setGenDesde] = useState(iso(mesAnterior));
+  const [genHasta, setGenHasta] = useState(iso(new Date(hoy.getFullYear(), hoy.getMonth(), 0)));
+  const [genCliente, setGenCliente] = useState(clientes[0]?.id ?? "");
   const [generando, setGenerando] = useState(false);
   const [aviso, setAviso] = useState("");
 
@@ -59,7 +69,7 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
     setCargando(true);
     let q = supabase
       .from("facturas")
-      .select("id, numero, cliente_id, fecha, periodo_desde, destinatario_nombre, base, iva, irpf, total, estado, origen, enviada_at, series_facturacion(nombre, codigo)")
+      .select("id, numero, cliente_id, fecha, periodo_desde, destinatario_nombre, base, iva, irpf, total, estado, origen, tipo, enviada_at, series_facturacion(nombre, codigo)")
       .order("fecha", { ascending: false })
       .order("numero", { ascending: false })
       .limit(2000);
@@ -84,16 +94,25 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
     setGenerando(true);
     setAviso("");
     setError("");
-    const { data, error: err } = await supabase.rpc("generar_facturas", {
-      p_mes: `${genMes}-01`,
-      p_cliente: genCliente || null,
+    if (!genCliente) {
+      setGenerando(false);
+      return setError("Elige el cliente.");
+    }
+    const { data, error: err } = await supabase.rpc("generar_facturas_periodo", {
+      p_cliente: genCliente,
+      p_desde: genDesde,
+      p_hasta: genHasta,
     });
     setGenerando(false);
     if (err) return setError(err.message);
-    const [a, m] = genMes.split("-");
-    setAviso(`${data ?? 0} facturas en borrador de ${MESES[Number(m) - 1].toLowerCase()} ${a}. Revísalas, añade los conceptos manuales y emítelas.`);
-    setAnio(a);
-    setMes(String(Number(m)));
+    setAviso(
+      data
+        ? `${data} ${data === 1 ? "factura generada" : "facturas generadas"} en borrador. Revísalas y envíalas; mientras no se envíen puedes volver a generarlas.`
+        : "No se ha generado ninguna: el cliente no tiene series de facturación activas o sus facturas de ese periodo ya están enviadas.",
+    );
+    setAnio(genHasta.slice(0, 4));
+    setMes(String(Number(genHasta.slice(5, 7))));
+    setClienteId(genCliente);
     cargar();
   }
 
@@ -110,20 +129,15 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
     <div>
       {/* Generar facturas de un periodo */}
       <section className="rounded-lg border border-line bg-white p-4">
-        <h2 className="text-sm font-semibold">Generar facturas del mes</h2>
+        <h2 className="text-sm font-semibold">Generar facturas</h2>
         <p className="mt-0.5 text-xs text-ink/50">
-          Crea (o rehace, si siguen en borrador) las facturas de cada serie de facturación con las líneas de Ingresos del
-          mes. Las facturas emitidas no se tocan.
+          Crea las facturas del cliente para el periodo (una por cada serie de facturación) con las líneas de Ingresos. Si
+          ya existen y no se han enviado, se vuelven a generar con los datos actuales; las enviadas no se tocan.
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="gm">Mes</label>
-            <input id="gm" type="month" value={genMes} onChange={(e) => setGenMes(e.target.value)} />
-          </div>
-          <div>
             <label htmlFor="gc">Cliente</label>
             <select id="gc" value={genCliente} onChange={(e) => setGenCliente(e.target.value)}>
-              <option value="">Todos</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.codigo ? `${c.codigo} · ` : ""}
@@ -132,10 +146,36 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
               ))}
             </select>
           </div>
+          <div>
+            <label htmlFor="gd">Desde</label>
+            <input id="gd" type="date" value={genDesde} onChange={(e) => setGenDesde(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="gh">Hasta</label>
+            <input id="gh" type="date" value={genHasta} onChange={(e) => setGenHasta(e.target.value)} />
+          </div>
+          <div className="flex gap-2 pb-0.5 text-xs">
+            {[1, 0].map((atras) => {
+              const d = new Date(hoy.getFullYear(), hoy.getMonth() - atras, 1);
+              return (
+                <button
+                  key={atras}
+                  type="button"
+                  onClick={() => {
+                    setGenDesde(iso(d));
+                    setGenHasta(iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)));
+                  }}
+                  className="rounded border border-line px-2 py-1 text-ink/70 hover:bg-paper"
+                >
+                  {MESES[d.getMonth()]}
+                </button>
+              );
+            })}
+          </div>
           <button
             type="button"
             onClick={generar}
-            disabled={generando || !genMes}
+            disabled={generando || !genDesde || !genHasta}
             className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper disabled:opacity-50"
           >
             {generando ? "Generando…" : "Generar facturas"}
@@ -185,15 +225,15 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
           <label htmlFor="e">Estado</label>
           <select id="e" value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="">Todos</option>
-            <option value="borrador">Borrador</option>
-            <option value="emitida">Emitida</option>
+            <option value="borrador">Sin enviar</option>
+            <option value="emitida">Enviada / emitida</option>
             <option value="anulada">Anulada</option>
           </select>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Total etiqueta="Facturas" valor={String(visibles.length)} sub={`${visibles.filter((f) => f.estado === "borrador").length} en borrador`} />
+        <Total etiqueta="Facturas" valor={String(visibles.length)} sub={`${visibles.filter((f) => f.estado === "borrador").length} sin enviar`} />
         <Total etiqueta="Base emitida" valor={eur(emitidas.reduce((s, f) => s + Number(f.base), 0))} />
         <Total etiqueta="IVA" valor={eur(emitidas.reduce((s, f) => s + Number(f.iva), 0))} />
         <Total etiqueta="Total facturado" valor={eur(emitidas.reduce((s, f) => s + Number(f.total), 0))} />
