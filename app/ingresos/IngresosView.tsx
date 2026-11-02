@@ -871,20 +871,6 @@ function EditarLinea({
               onChange={set("iva_pct")}
             />
           </Campo>
-          <Campo etiqueta="Hora MO bruto">
-            <input
-              inputMode="decimal"
-              value={f.mo_unitario_bruto}
-              onChange={set("mo_unitario_bruto")}
-            />
-          </Campo>
-          <Campo etiqueta="Hora MO neto">
-            <input
-              inputMode="decimal"
-              value={f.mo_unitario_neto}
-              onChange={set("mo_unitario_neto")}
-            />
-          </Campo>
         </div>
 
         <p className="mt-5 text-xs font-medium uppercase tracking-wide text-ink/50">
