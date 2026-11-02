@@ -161,7 +161,6 @@ function Series({ clientes }: { clientes: Cliente[] }) {
                   {[
                     s.checkin !== "no" && `Check-in ${s.checkin}`,
                     s.gestion && "Gestión",
-                    s.descontar_checkin && "descuenta check-in",
                     s.limpieza !== "no" && `Limpieza ${s.limpieza}`,
                     s.servicios && "Servicios",
                   ]
@@ -299,10 +298,6 @@ function EditarSerie({ serie, clientes, onCerrar, onGuardado }: { serie: Serie |
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={s.servicios} onChange={set("servicios")} className="h-4 w-4" /> Incluir Servicios (reparaciones, extras)
-          </label>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input type="checkbox" checked={s.descontar_checkin} onChange={set("descontar_checkin")} className="h-4 w-4" /> Descontar de la gestión los check-in
-            que se facturan en otra serie
           </label>
           <div>
             <label>% IRPF</label>

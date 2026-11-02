@@ -210,6 +210,16 @@ function Servicio({ clienteId, servicio }: { clienteId: string; servicio: "Check
             etiqueta: `Cada entrada genera una línea de ${nombre} al completar el check-in`,
             tipo: "sino",
           },
+          ...(servicio === "Checkin"
+            ? [
+                {
+                  key: "checkin_resta_gestion",
+                  etiqueta: "Restar el importe de check-in de la gestión (si se factura por separado)",
+                  tipo: "sino" as const,
+                  ayuda: "La gestión de cada mes lleva una línea en negativo con los check-in del mes, para no cobrarlos dos veces.",
+                },
+              ]
+            : []),
         ]}
       />
 
