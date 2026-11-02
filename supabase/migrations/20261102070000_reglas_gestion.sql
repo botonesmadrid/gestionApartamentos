@@ -16,7 +16,8 @@ create table if not exists public.reglas_gestion (
   tipo text not null check (tipo in ('porcentaje', 'tramos')),
   porcentaje numeric,
   base_calculo text not null default 'precio_sin_comision' check (base_calculo in ('precio', 'precio_sin_comision')),
-  fijo_adicional numeric not null default 0,
+  fijo_adicional numeric not null default 0,  -- se suma a la línea base y se descuenta en una línea aparte (p. ej. lo que va al propietario)
+  concepto_fijo text,                         -- nombre de esa línea de descuento (p. ej. "Antonio")
   ambito text not null default 'piso' check (ambito in ('piso', 'cliente')),  -- se calcula por apartamento o para todo el cliente
   notas text,
   created_at timestamptz not null default now(),
@@ -46,8 +47,8 @@ begin
                                  ('CH', date '2025-01-01', 21), ('CH', date '2026-04-01', 18)) x(cod, desde, pct) loop
     select id into v_cli from public.clientes where codigo = t.cod;
     if v_cli is not null then
-      insert into public.reglas_gestion (cliente_id, vigente_desde, tipo, porcentaje, base_calculo)
-      values (v_cli, t.desde, 'porcentaje', t.pct, 'precio_sin_comision') on conflict do nothing;
+      insert into public.reglas_gestion (cliente_id, vigente_desde, tipo, porcentaje, base_calculo, ambito)
+      values (v_cli, t.desde, 'porcentaje', t.pct, 'precio_sin_comision', 'cliente') on conflict do nothing;
     end if;
   end loop;
 
@@ -57,8 +58,8 @@ begin
       (date '2019-06-01', array[1200, 1450, 1730, 2040, 2380, 2750, 3150, 3150, 3150]::numeric[]),
       (date '2024-03-01', array[1300, 1562.5, 1857.5, 2182.5, 2539.5, 2929.5, 3349.5, 3769.5, 3769.5]::numeric[]),
       (date '2026-02-01', array[1361, 1631, 1935, 2269, 2636, 3037, 3469, 3901, 4333]::numeric[])) x(desde, importes) loop
-    insert into public.reglas_gestion (cliente_id, vigente_desde, tipo, base_calculo, fijo_adicional, ambito)
-    values (v_cli, t.desde, 'tramos', 'precio', 800, 'cliente') on conflict do nothing returning id into v_r;
+    insert into public.reglas_gestion (cliente_id, vigente_desde, tipo, base_calculo, fijo_adicional, concepto_fijo, ambito)
+    values (v_cli, t.desde, 'tramos', 'precio', 800, 'Antonio', 'cliente') on conflict do nothing returning id into v_r;
     if v_r is not null then
       insert into public.reglas_gestion_tramos (regla_id, desde, importe)
       select v_r, d, t.importes[i]
@@ -77,8 +78,11 @@ declare
   r public.reglas_gestion;
   v_nombre text := (array['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'])[extract(month from p_mes)::int];
   v_ord text[] := array['1er','2do','3er','4o','5o','6o','7o','8o','9o','10o','11o','12o'];
-  g record; t record; v_prev numeric; v_n int;
+  g record; t record; v_prev numeric; v_n int; v_piso_cli text;
 begin
+  -- Ámbito cliente: la línea lleva el piso si el cliente tiene uno solo; si no, "Todos".
+  select case when count(*) = 1 then max(a.piso) else 'Todos' end into v_piso_cli
+  from public.apartamentos a where a.cliente_id = p_cliente and upper(a.piso) <> 'SIN ASIGNAR';
   select * into r from public.reglas_gestion rg
   where rg.cliente_id = p_cliente and rg.vigente_desde <= m order by rg.vigente_desde desc limit 1;
   if r.id is null then return; end if;
@@ -86,14 +90,14 @@ begin
   -- Facturación del mes: líneas Checkin con entrada en el mes (reservas canceladas excluidas por la vista),
   -- agrupada por piso o para todo el cliente.
   for g in
-    select case when r.ambito = 'piso' then coalesce(v.piso, '—') else 'Todos' end as piso,
+    select case when r.ambito = 'piso' then coalesce(v.piso, '—') else v_piso_cli end as piso,
            coalesce(sum(case when r.base_calculo = 'precio' then v.precio else v.precio_sin_comision end), 0) as base
     from public.v_ingresos v
     where v.cliente_id = p_cliente and v.servicio = 'Checkin' and v.entrada >= m and v.entrada < (m + interval '1 month')
     group by 1
     union all
     -- ámbito cliente sin entradas en el mes: también se factura la cuota base
-    select 'Todos', 0 where r.ambito = 'cliente' and not exists (
+    select v_piso_cli, 0 where r.ambito = 'cliente' and not exists (
       select 1 from public.v_ingresos v where v.cliente_id = p_cliente and v.servicio = 'Checkin'
         and v.entrada >= m and v.entrada < (m + interval '1 month'))
     order by 1
@@ -108,9 +112,12 @@ begin
     for t in select tr.desde, tr.importe from public.reglas_gestion_tramos tr where tr.regla_id = r.id order by tr.desde loop
       if v_prev is null then
         return query select g.piso, 0, v_nombre, t.importe + r.fijo_adicional, g.base, r.id, r.vigente_desde;
+        if r.fijo_adicional <> 0 then
+          return query select g.piso, 1, v_nombre || ' ' || coalesce(r.concepto_fijo, 'Fijo'), -r.fijo_adicional, g.base, r.id, r.vigente_desde;
+        end if;
       elsif g.base >= t.desde and t.importe - v_prev <> 0 then
         v_n := v_n + 1;
-        return query select g.piso, v_n, v_nombre || ' Extra ' || coalesce(v_ord[v_n], v_n || 'o') || ' Tramo', t.importe - v_prev, g.base, r.id, r.vigente_desde;
+        return query select g.piso, v_n + 1, v_nombre || ' Extra ' || coalesce(v_ord[v_n], v_n || 'o') || ' Tramo', t.importe - v_prev, g.base, r.id, r.vigente_desde;
       end if;
       v_prev := t.importe;
     end loop;
