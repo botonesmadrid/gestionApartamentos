@@ -11,7 +11,7 @@ export default async function ConfigFacturacionPage() {
   if (!user) redirect("/login");
   const { data: perfil } = await supabase.from("perfiles").select("rol").eq("id", user.id).maybeSingle();
   if (perfil?.rol !== "gestor") redirect("/");
-  const { data: clientes } = await supabase.from("clientes").select("id, codigo, nombre").order("nombre");
+  const { data: clientes } = await supabase.from("clientes").select("id, codigo, nombre").eq("activo", true).order("nombre");
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">

@@ -9,7 +9,7 @@ export default async function IngresosPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: clientes } = await supabase.from("clientes").select("id, codigo, nombre").order("nombre");
+  const { data: clientes } = await supabase.from("clientes").select("id, codigo, nombre").eq("activo", true).order("nombre");
   const { data: origenes } = await supabase.from("origenes_reserva").select("codigo, nombre").order("nombre");
 
   return (

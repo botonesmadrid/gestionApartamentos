@@ -117,10 +117,12 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
   }
 
   const visibles = useMemo(() => {
+    // Las facturas de clientes desactivados no se muestran.
+    const activas = facturas.filter((f) => !f.cliente_id || clientes.some((c) => c.id === f.cliente_id));
     const b = busqueda.trim().toLowerCase();
-    if (!b) return facturas;
-    return facturas.filter((f) => [f.numero, f.destinatario_nombre, f.series_facturacion?.nombre].some((v) => (v ?? "").toLowerCase().includes(b)));
-  }, [facturas, busqueda]);
+    if (!b) return activas;
+    return activas.filter((f) => [f.numero, f.destinatario_nombre, f.series_facturacion?.nombre].some((v) => (v ?? "").toLowerCase().includes(b)));
+  }, [facturas, busqueda, clientes]);
   const emitidas = visibles.filter((f) => f.estado === "emitida");
   const anios = Array.from({ length: hoy.getFullYear() - 2019 + 1 }, (_, i) => String(2020 + i)).reverse();
   const nombreCliente = (id: string | null) => clientes.find((c) => c.id === id)?.codigo ?? "";

@@ -61,6 +61,7 @@ export const MAESTROS: MaestroConfig[] = [
     campos: [
       { key: "codigo", etiqueta: "Código", tipo: "text" },
       { key: "nombre", etiqueta: "Nombre", tipo: "text", requerido: true },
+      { key: "activo", etiqueta: "Activo (si no, sus registros dejan de verse en la app)", tipo: "sino" },
       { key: "email", etiqueta: "Email", tipo: "text" },
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },
       { key: "emails_facturacion", etiqueta: "Emails para enviar las facturas (separados por comas)", tipo: "text", enLista: false },

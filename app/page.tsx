@@ -17,6 +17,7 @@ export default async function Home() {
   const { data: clientes } = await supabase
     .from("clientes")
     .select("id, nombre, codigo, created_at")
+    .eq("activo", true)
     .order("nombre");
 
   const { data: origenes } = await supabase

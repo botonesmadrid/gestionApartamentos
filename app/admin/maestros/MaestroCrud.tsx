@@ -34,7 +34,8 @@ function EnlaceDrive({ tipo, id }: { tipo: "carpeta" | "documento"; id: string }
 
 // Campos numéricos: aceptan coma decimal ("24,40"); vacío = sin valor.
 function valorParaGuardar(tipo: string, v: any) {
-  if (tipo === "sino") return v === true || v === "true";
+  // Sí/No: vacío (alta nueva sin tocar) = valor por defecto de la base de datos.
+  if (tipo === "sino") return v === "" || v === null || v === undefined ? undefined : v === true || v === "true";
   if (v === "" || v === undefined || v === null) return null;
   if (tipo === "numero") {
     const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
@@ -209,7 +210,8 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
     }
     if (campo.tipo === "sino") {
       return (
-        <select value={String(valor ?? false)} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+        <select value={valor === "" || valor == null ? "" : String(valor)} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+          <option value="">Por defecto</option>
           <option value="true">Sí</option>
           <option value="false">No</option>
         </select>
@@ -373,7 +375,13 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
                   >
                     {columnas.map((campo) => {
                       const texto =
-                        campo.tipo === "select" ? etiquetaDe(campo.key, fila[campo.key]) : fila[campo.key];
+                        campo.tipo === "select"
+                          ? etiquetaDe(campo.key, fila[campo.key])
+                          : campo.tipo === "sino"
+                            ? fila[campo.key] === false || fila[campo.key] === "false"
+                              ? "No"
+                              : "Sí"
+                            : fila[campo.key];
                       return (
                         <td key={campo.key} className="truncate px-3 py-2" title={texto ? String(texto) : undefined}>
                           {campo.enlace && texto ? (
