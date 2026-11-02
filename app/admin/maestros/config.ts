@@ -13,6 +13,7 @@ export interface MaestroCampo {
   requerido?: boolean;
   select?: CampoSelect;
   enLista?: boolean; // false: solo en el formulario, no como columna de la tabla
+  enlace?: "carpeta" | "documento"; // ID de Google Drive/Docs: se muestra un enlace para abrirlo
 }
 
 export interface MaestroConfig {
@@ -62,8 +63,8 @@ export const MAESTROS: MaestroConfig[] = [
       { key: "nombre", etiqueta: "Nombre", tipo: "text", requerido: true },
       { key: "email", etiqueta: "Email", tipo: "text" },
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },
-      { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos (ID de Drive)", tipo: "text", enLista: false },
-      { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato (ID de Google Docs)", tipo: "text", enLista: false },
+      { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos", tipo: "text", enlace: "carpeta" },
+      { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato", tipo: "text", enlace: "documento" },
     ],
   },
   {

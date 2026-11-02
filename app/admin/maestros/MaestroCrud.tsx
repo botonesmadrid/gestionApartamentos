@@ -7,6 +7,31 @@ import type { MaestroConfig } from "./config";
 type Fila = Record<string, any>;
 type Opciones = Record<string, { valor: string; etiqueta: string }[]>;
 
+// Enlaces de Google Drive/Docs a partir del ID guardado.
+function urlDrive(tipo: "carpeta" | "documento", id: string) {
+  return tipo === "carpeta"
+    ? `https://drive.google.com/drive/folders/${id}`
+    : `https://docs.google.com/document/d/${id}/edit`;
+}
+// Si se pega un enlace completo de Drive/Docs, se guarda solo el ID.
+function idDesdeEnlace(v: string) {
+  const m = v.match(/\/folders\/([A-Za-z0-9_-]{10,})/) ?? v.match(/\/d\/([A-Za-z0-9_-]{10,})/) ?? v.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : v.trim();
+}
+function EnlaceDrive({ tipo, id }: { tipo: "carpeta" | "documento"; id: string }) {
+  return (
+    <a
+      href={urlDrive(tipo, id)}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-xs text-ink/70 hover:text-ink"
+      title={id}
+    >
+      {tipo === "carpeta" ? "Abrir carpeta" : "Abrir plantilla"} ↗
+    </a>
+  );
+}
+
 function filaVacia(config: MaestroConfig): Fila {
   const fila: Fila = {};
   for (const campo of config.campos) fila[campo.key] = "";
@@ -171,6 +196,19 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
         </select>
       );
     }
+    if (campo.enlace) {
+      return (
+        <div className="flex items-center gap-2">
+          <input
+            value={valor ?? ""}
+            placeholder="Pega el enlace o el ID de Google Drive"
+            onChange={(e) => onChange(idDesdeEnlace(e.target.value))}
+            disabled={disabled}
+          />
+          {valor ? <EnlaceDrive tipo={campo.enlace} id={valor} /> : null}
+        </div>
+      );
+    }
     return (
       <input
         value={valor ?? ""}
@@ -309,7 +347,11 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
                         campo.tipo === "select" ? etiquetaDe(campo.key, fila[campo.key]) : fila[campo.key];
                       return (
                         <td key={campo.key} className="truncate px-3 py-2" title={texto ? String(texto) : undefined}>
-                          {texto ?? <span className="text-ink/30">—</span>}
+                          {campo.enlace && texto ? (
+                            <EnlaceDrive tipo={campo.enlace} id={String(texto)} />
+                          ) : (
+                            texto ?? <span className="text-ink/30">—</span>
+                          )}
                         </td>
                       );
                     })}

@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       apartamentos(piso, num_registro, codigo_establecimiento, cru, clientes(codigo, nombre, drive_carpeta_id, drive_plantilla_id)),
       formas_pago(descripcion),
       huespedes!huespedes_reserva_id_fkey(id, created_at, nombre, apellido1, apellido2, numero_documento, soporte_documento, direccion, codigo_postal,
-        nombre_municipio, correo, telefono, motivo_viaje, fecha_nacimiento, pais:paises!huespedes_pais_codigo_fkey(nombre),
+        nombre_municipio, codigo_municipio_ref, correo, telefono, motivo_viaje, fecha_nacimiento, pais:paises!huespedes_pais_codigo_fkey(nombre),
         nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre))`)
     .eq("id", reserva_id ?? "")
     .single();
@@ -68,8 +68,9 @@ Deno.serve(async (req) => {
     SOPORTE: t.soporte_documento ?? "",
     DOMICILIO: t.direccion ?? "",
     CODIGOPOSTAL: t.codigo_postal ?? "",
-    MUNICIPIO: t.nombre_municipio ?? "",
-    MUNICIPIOEXT: t.nombre_municipio ?? "",
+    // La plantilla lleva {{MUNICIPIOEXT}}{{MUNICIPIO}} seguidos: solo se rellena uno (como en el Sheet).
+    MUNICIPIO: t.codigo_municipio_ref ? (t.nombre_municipio ?? "") : "",
+    MUNICIPIOEXT: t.codigo_municipio_ref ? "" : (t.nombre_municipio ?? ""),
     PAIS: t.pais?.nombre ?? "",
     NACIONALIDAD: t.nacionalidad?.nombre ?? "",
     CORREO: t.correo ?? "",
