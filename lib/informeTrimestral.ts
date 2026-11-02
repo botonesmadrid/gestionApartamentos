@@ -172,20 +172,21 @@ export async function generarInformeTrimestral(opts: {
     s.addTable(rows, { x: 7.3, y: 1.6, w: 5.6, colW: [1.7, 0.9, 1.1, 0.9, 1.0], fontSize: 10, rowH: 0.38, border: { type: "solid", color: "DEDAD1", pt: 0.75 } });
   }
 
-  // 6. Reservas a futuro por canal (meses posteriores al trimestre)
+  // 6. Valor de reservas a futuro por canal (tabla informada a mano; si no, reservas registradas)
   {
     const s = pptx.addSlide();
-    const futuros = actual.meses.slice(hasta);
-    titulo(s, "Reservas a futuro por canal", futuros.length ? `${MESES[hasta]} – Diciembre ${A} y ${A + 1}` : `Año ${A + 1}`);
-    const canales = CANALES.filter((c) => futuros.some((m) => m.canales[c].ingresos));
-    if (!futuros.length || !canales.length) {
-      s.addText(futuros.length ? "No hay reservas registradas para los próximos meses." : `Reservado para ${A + 1}: ${eur0(actual.totalSiguiente)}`, {
+    const idx = Array.from({ length: 12 - hasta }, (_, i) => hasta + i);
+    const valor = (c: string, i: number) => (actual.futuro && Object.keys(actual.futuro).length ? Number(actual.futuro[c]?.[i] ?? 0) : actual.meses[i].canales[c].ingresos);
+    titulo(s, "Valor de reservas a futuro por canal", idx.length ? `${MESES[hasta]} – Diciembre ${A}` : `Año ${A + 1}`);
+    const canales = CANALES.filter((c) => idx.some((i) => valor(c, i)));
+    if (!idx.length || !canales.length) {
+      s.addText(idx.length ? "No hay valor de reservas informado para los próximos meses." : `Valor a futuro ${A + 1}: ${eur0(valorFuturo(actual, 12))}`, {
         x: 0.8, y: 2, w: 11.5, h: 0.6, fontSize: 16, color: SUAVE, fontFace: "Arial",
       });
     } else {
       s.addChart(
         pptx.ChartType.bar,
-        canales.map((c) => ({ name: c, labels: futuros.map((m) => MESES_CORTOS[m.mes - 1]), values: futuros.map((m) => Math.round(m.canales[c].ingresos)) })),
+        canales.map((c) => ({ name: c, labels: idx.map((i) => MESES_CORTOS[i]), values: idx.map((i) => Math.round(valor(c, i))) })),
         {
           x: 0.5, y: 1.5, w: 8.2, h: 5.4, barDir: "col", barGrouping: "stacked",
           chartColors: canales.map((c) => hex(COLORES_CANAL[c])), showLegend: true, legendPos: "t", legendFontSize: 11,
@@ -193,9 +194,9 @@ export async function generarInformeTrimestral(opts: {
         },
       );
       const rows = [
-        [cab("Mes"), cab("Reservado")],
-        ...futuros.map((m) => [celda(MESES[m.mes - 1]), celda(eur0(m.ingresos), { align: "right" })]),
-        [celda(`Año ${A + 1}`), celda(eur0(actual.totalSiguiente), { align: "right" })],
+        [cab("Mes"), cab("Valor")],
+        ...idx.map((i) => [celda(MESES[i]), celda(eur0(canales.reduce((t, c) => t + valor(c, i), 0)), { align: "right" })]),
+        [celda(`Año ${A + 1}`), celda(eur0(valorFuturo(actual, 12)), { align: "right" })],
       ];
       s.addTable(rows, { x: 9.0, y: 1.6, w: 3.9, colW: [2.0, 1.9], fontSize: 11, rowH: 0.38, border: { type: "solid", color: "DEDAD1", pt: 0.75 } });
     }

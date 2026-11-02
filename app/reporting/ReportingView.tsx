@@ -13,15 +13,140 @@ import {
   calcularAnual,
   calcularTrimestre,
   cargarEstancias,
+  cargarFuturo,
+  sugerirFuturo,
+  totalFuturoMes,
   eur0,
   pct,
-  pisosDe,
   signo,
   valorFuturo,
   type Anual,
   type Estancia,
+  type Futuro,
 } from "@/lib/reporting";
 import { generarInformeTrimestral, type DatosFacturacion } from "@/lib/informeTrimestral";
+
+// "Valor Res. Canales futuro": se informa a mano por cliente, año, mes y canal; la app sugiere la media de los
+// últimos 5 años para las casillas vacías.
+function ValorFuturo({
+  clienteId,
+  anio,
+  guardado,
+  sugerencia,
+  onGuardado,
+}: {
+  clienteId: string;
+  anio: number;
+  guardado: Futuro | undefined;
+  sugerencia: Futuro;
+  onGuardado: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const aTexto = (n: number | undefined) => (n == null ? "" : String(Math.round(n * 100) / 100).replace(".", ","));
+  const [valores, setValores] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(CANALES.map((c) => [c, Array.from({ length: 12 }, (_, i) => (guardado?.[c] ? aTexto(guardado[c][i]) : ""))])),
+  );
+  const [estado, setEstado] = useState("");
+  const [cambiado, setCambiado] = useState(false);
+  const n = (v: string) => (v.trim() === "" ? null : Number(v.replace(/\./g, "").replace(",", ".")));
+  const total = (i: number) => CANALES.reduce((s, c) => s + (n(valores[c][i]) ?? 0), 0);
+
+  function sugerir() {
+    setValores((v) =>
+      Object.fromEntries(CANALES.map((c) => [c, v[c].map((x, i) => (x.trim() === "" ? aTexto(sugerencia[c][i]) : x))])),
+    );
+    setCambiado(true);
+    setEstado("Sugerencia aplicada a las casillas vacías. Revísala y guarda.");
+  }
+
+  async function guardar() {
+    const filas = CANALES.flatMap((c) =>
+      valores[c].map((v, i) => ({ cliente_id: clienteId, anio, mes: i + 1, canal: c, importe: n(v) })).filter((f) => f.importe != null),
+    );
+    if (filas.some((f) => Number.isNaN(f.importe))) return setEstado("Revisa los importes: deben ser números.");
+    setEstado("Guardando…");
+    const { error } = await supabase
+      .from("reporting_futuro")
+      .upsert(filas.map((f) => ({ ...f, updated_at: new Date().toISOString() })), { onConflict: "cliente_id,anio,mes,canal" });
+    if (error) return setEstado(error.message);
+    setCambiado(false);
+    setEstado("Guardado");
+    onGuardado();
+  }
+
+  return (
+    <section className="mt-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Valor reservas canales futuro {anio}</h2>
+          <p className="mt-0.5 max-w-2xl text-xs text-ink/50">
+            Se informa a mano y alimenta el KPI «Valor reservas a futuro» y la presentación. «Sugerir» rellena las casillas
+            vacías con la media de los últimos 5 años de este cliente.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {estado && <span className={`text-xs ${estado === "Guardado" ? "text-emerald-700" : "text-ink/60"}`}>{estado}</span>}
+          <button type="button" onClick={sugerir} className="rounded-md border border-line bg-white px-3 py-1.5 text-sm hover:bg-paper">
+            Sugerir (media 5 años)
+          </button>
+          <button type="button" onClick={guardar} disabled={!cambiado} className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-paper disabled:opacity-40">
+            Guardar
+          </button>
+        </div>
+      </div>
+      <div className="mt-2 overflow-x-auto rounded-lg border border-line bg-white">
+        <table className="w-full min-w-[1150px] text-sm">
+          <thead>
+            <tr className="border-b border-line text-right text-xs text-ink/50">
+              <th className="sticky left-0 z-10 bg-white px-3 py-2 text-left font-medium">Canal</th>
+              {MESES_CORTOS.map((m) => (
+                <th key={m} className="px-1 py-2 font-medium">
+                  {m}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {CANALES.map((c) => (
+              <tr key={c} className="border-b border-line">
+                <th className="sticky left-0 z-10 bg-white px-3 py-1 text-left text-xs font-medium">
+                  <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: COLORES_CANAL[c] }} />
+                  {c}
+                </th>
+                {valores[c].map((v, i) => (
+                  <td key={i} className="px-1 py-1">
+                    <input
+                      aria-label={`${c} ${MESES[i]}`}
+                      inputMode="decimal"
+                      value={v}
+                      placeholder={sugerencia[c][i] ? String(Math.round(sugerencia[c][i])) : "0"}
+                      onChange={(e) => {
+                        const x = e.target.value;
+                        setValores((p) => ({ ...p, [c]: p[c].map((y, j) => (j === i ? x : y)) }));
+                        setCambiado(true);
+                        setEstado("");
+                      }}
+                      className="w-full min-w-[4.5rem] rounded border border-line px-1.5 py-1 text-right text-xs tabular-nums placeholder:text-ink/25"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr className="font-semibold">
+              <th className="sticky left-0 z-10 bg-white px-3 py-1.5 text-left text-xs">Total mes</th>
+              {MESES_CORTOS.map((m, i) => (
+                <td key={m} className="px-1 py-1.5 text-right text-xs tabular-nums">
+                  {eur0(total(i))}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-1 text-xs text-ink/40">En gris, la media de los últimos 5 años como referencia.</p>
+    </section>
+  );
+}
 
 type Cliente = { id: string; codigo: string | null; nombre: string; pisos_ocupacion: number };
 type Pestana = "informe" | "entradas" | "facturacion";
@@ -30,26 +155,71 @@ export default function ReportingView({ clientes }: { clientes: Cliente[] }) {
   const supabase = useMemo(() => createClient(), []);
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
-  const [clienteId, setClienteId] = useState(clientes.find((c) => c.codigo === "CM")?.id ?? "");
+  const [clienteId, setClienteId] = useState(clientes.find((c) => c.codigo === "CM")?.id ?? clientes[0]?.id ?? "");
+  const [piso, setPiso] = useState("");
+  const [canal, setCanal] = useState("");
+  const [futuros, setFuturos] = useState<Record<number, Futuro>>({});
+  const [versionFuturo, setVersionFuturo] = useState(0);
+  const [futurosListos, setFuturosListos] = useState(false);
   const [pestana, setPestana] = useState<Pestana>("informe");
   const [estancias, setEstancias] = useState<Estancia[] | null>(null);
   const [error, setError] = useState("");
   const [generando, setGenerando] = useState(0);
 
+  // Estancias de los 5 años anteriores (para la sugerencia del valor a futuro) hasta el año siguiente.
   useEffect(() => {
+    if (!clienteId) return;
     setEstancias(null);
     setError("");
-    cargarEstancias(supabase, [anio - 1, anio, anio + 1], clienteId || null)
+    setPiso("");
+    cargarEstancias(supabase, [anio - 5, anio + 1], clienteId)
       .then(setEstancias)
       .catch((e) => setError(String(e.message ?? e)));
   }, [supabase, anio, clienteId]);
+  useEffect(() => {
+    if (!clienteId) return;
+    setFuturosListos(false);
+    cargarFuturo(supabase, clienteId, [anio - 1, anio, anio + 1])
+      .then((f) => {
+        setFuturos(f);
+        setFuturosListos(true);
+      })
+      .catch((e) => setError(String(e.message ?? e)));
+  }, [supabase, anio, clienteId, versionFuturo]);
 
   const cliente = clientes.find((c) => c.id === clienteId);
-  const pisos = cliente ? Number(cliente.pisos_ocupacion) || 1 : estancias ? pisosDe(estancias.filter((e) => e.anio === anio), null) : 1;
-  const actual = useMemo(() => (estancias ? calcularAnual(estancias, anio, pisos) : null), [estancias, anio, pisos]);
-  const anterior = useMemo(() => (estancias ? calcularAnual(estancias, anio - 1, pisos) : null), [estancias, anio, pisos]);
+  const pisosCliente = useMemo(
+    () => Array.from(new Set((estancias ?? []).filter((e) => e.anio >= anio - 1).map((e) => e.piso).filter((p): p is string => !!p))).sort(),
+    [estancias, anio],
+  );
+  // Filtros de dimensión: piso y canal.
+  const filtradas = useMemo(
+    () => (estancias ?? []).filter((e) => (!piso || e.piso === piso) && (!canal || e.canal === canal)),
+    [estancias, piso, canal],
+  );
+  const pisos = piso ? 1 : Number(cliente?.pisos_ocupacion) || 1;
+  const conFuturo = (a: Anual, f: Futuro | undefined, siguiente: Futuro | undefined): Anual => {
+    const soloCanal = (x: Futuro | undefined) => (x && canal ? { [canal]: x[canal] ?? Array(12).fill(0) } : x);
+    const fa = soloCanal(f);
+    const fs = soloCanal(siguiente);
+    return {
+      ...a,
+      futuro: fa && Object.keys(fa).length ? fa : null,
+      futuroSiguiente: fs && Object.keys(fs).length ? Array.from({ length: 12 }, (_, i) => totalFuturoMes(fs, i)).reduce((x, y) => x + y, 0) : null,
+    };
+  };
+  const actual = useMemo(
+    () => (estancias ? conFuturo(calcularAnual(filtradas, anio, pisos), futuros[anio], futuros[anio + 1]) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estancias, filtradas, anio, pisos, futuros, canal],
+  );
+  const anterior = useMemo(
+    () => (estancias ? conFuturo(calcularAnual(filtradas, anio - 1, pisos), futuros[anio - 1], futuros[anio]) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estancias, filtradas, anio, pisos, futuros, canal],
+  );
   const anios = Array.from({ length: hoy.getFullYear() - 2020 + 2 }, (_, i) => 2021 + i).reverse();
-  const nombreCliente = cliente ? cliente.nombre : "Todos los clientes";
+  const nombreCliente = [cliente?.nombre ?? "", piso && `piso ${piso}`, canal].filter(Boolean).join(" · ");
 
   async function presentacion(t: number) {
     if (!actual || !anterior) return;
@@ -61,9 +231,7 @@ export default function ReportingView({ clientes }: { clientes: Cliente[] }) {
       const [{ data: iva }, { data: facs }] = await Promise.all([
         supabase.from("v_iva_trimestral").select("*").in("anio", [anio, anio - 1]).eq("trimestre", t),
         (() => {
-          let q = supabase.from("facturas").select("destinatario_nombre, base, total, cliente_id").eq("estado", "emitida").gte("fecha", desde).lte("fecha", hasta);
-          if (clienteId) q = q.eq("cliente_id", clienteId);
-          return q;
+          return supabase.from("facturas").select("destinatario_nombre, base, total, cliente_id").eq("estado", "emitida").eq("cliente_id", clienteId).gte("fecha", desde).lte("fecha", hasta);
         })(),
       ]);
       const porDestinatario = new Map<string, { base: number; total: number }>();
@@ -89,7 +257,6 @@ export default function ReportingView({ clientes }: { clientes: Cliente[] }) {
         <div>
           <label htmlFor="cli">Cliente</label>
           <select id="cli" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-            <option value="">Todos</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.codigo ? `${c.codigo} · ` : ""}
@@ -103,6 +270,24 @@ export default function ReportingView({ clientes }: { clientes: Cliente[] }) {
           <select id="an" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>
             {anios.map((a) => (
               <option key={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="pi">Piso</label>
+          <select id="pi" value={piso} onChange={(e) => setPiso(e.target.value)}>
+            <option value="">Todos</option>
+            {pisosCliente.map((p) => (
+              <option key={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="ca">Canal</label>
+          <select id="ca" value={canal} onChange={(e) => setCanal(e.target.value)}>
+            <option value="">Todos</option>
+            {CANALES.map((c) => (
+              <option key={c}>{c}</option>
             ))}
           </select>
         </div>
@@ -136,9 +321,19 @@ export default function ReportingView({ clientes }: { clientes: Cliente[] }) {
       {!actual || !anterior ? (
         !error && <p className="py-10 text-center text-sm text-ink/40">Calculando…</p>
       ) : pestana === "informe" ? (
-        <InformeAnual actual={actual} anterior={anterior} generando={generando} onPresentacion={presentacion} />
+        <>
+          <InformeAnual actual={actual} anterior={anterior} generando={generando} onPresentacion={presentacion} />
+          {futurosListos && <ValorFuturo
+            key={`${clienteId}-${anio}-${versionFuturo}`}
+            clienteId={clienteId}
+            anio={anio}
+            guardado={futuros[anio]}
+            sugerencia={sugerirFuturo(estancias ?? [], anio)}
+            onGuardado={() => setVersionFuturo((v) => v + 1)}
+          />}
+        </>
       ) : pestana === "entradas" ? (
-        <AnalisisEntradas actual={actual} anterior={anterior} estancias={estancias ?? []} />
+        <AnalisisEntradas actual={actual} anterior={anterior} estancias={filtradas} />
       ) : (
         <AnalisisFacturacion anio={anio} clienteId={clienteId} />
       )}

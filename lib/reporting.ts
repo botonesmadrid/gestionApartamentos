@@ -77,7 +77,42 @@ export type Anual = {
   pisos: number;
   meses: Mes[];
   totalSiguiente: number; // reservas del año siguiente (columna "2027" del informe)
+  futuro?: Futuro | null; // "Valor Res. Canales futuro" informado a mano para el año
+  futuroSiguiente?: number | null; // total informado a mano para el año siguiente
 };
+
+// "Valor Res. Canales futuro": canal → importe de cada mes (12 posiciones).
+export type Futuro = Record<string, number[]>;
+export const totalFuturoMes = (f: Futuro, i: number) => Object.values(f).reduce((s, v) => s + (Number(v[i]) || 0), 0);
+
+export async function cargarFuturo(supabase: SupabaseClient, clienteId: string, anios: number[]): Promise<Record<number, Futuro>> {
+  const { data, error } = await supabase
+    .from("reporting_futuro")
+    .select("anio, mes, canal, importe")
+    .eq("cliente_id", clienteId)
+    .in("anio", anios);
+  if (error) throw new Error(error.message);
+  const out: Record<number, Futuro> = {};
+  for (const r of data ?? []) {
+    const f = (out[r.anio] ??= {});
+    (f[r.canal] ??= Array(12).fill(0))[r.mes - 1] = Number(r.importe) || 0;
+  }
+  return out;
+}
+
+// Sugerencia: media, por mes y canal, de los ingresos de los últimos 5 años con datos del cliente.
+export function sugerirFuturo(estancias: Estancia[], anio: number): Futuro {
+  const anios = [1, 2, 3, 4, 5].map((n) => anio - n).filter((a) => estancias.some((e) => e.anio === a));
+  const f: Futuro = Object.fromEntries(CANALES.map((c) => [c, Array(12).fill(0)]));
+  if (!anios.length) return f;
+  for (const e of estancias) {
+    if (!anios.includes(e.anio)) continue;
+    const c = CANALES.includes(e.canal) ? e.canal : "Otros";
+    f[c][e.mes - 1] += (Number(e.precio) || 0) / anios.length;
+  }
+  for (const c of CANALES) f[c] = f[c].map((v) => Math.round(v * 100) / 100);
+  return f;
+}
 
 const diasMes = (anio: number, mes: number) => new Date(anio, mes, 0).getDate();
 
@@ -121,9 +156,15 @@ export function calcularAnual(estancias: Estancia[], anio: number, pisos: number
   return { anio, pisos, meses, totalSiguiente };
 }
 
-// "Valor reservas a futuro" del mes m (como el informe): lo reservado para los meses siguientes del año;
-// en diciembre, lo reservado para el año siguiente.
+// "Valor reservas a futuro" del mes m (como el informe): suma de la tabla "Valor Res. Canales futuro" de los
+// meses siguientes del año; en diciembre, lo del año siguiente. Sin tabla informada, se usan las reservas registradas.
 export function valorFuturo(a: Anual, mes: number): number {
+  if (a.futuro && Object.keys(a.futuro).length) {
+    if (mes === 12) return a.futuroSiguiente ?? a.totalSiguiente;
+    let s = 0;
+    for (let i = mes; i < 12; i++) s += totalFuturoMes(a.futuro, i);
+    return s;
+  }
   const resto = a.meses.slice(mes).reduce((s, m) => s + m.ingresos, 0);
   return mes === 12 ? a.totalSiguiente : resto;
 }
