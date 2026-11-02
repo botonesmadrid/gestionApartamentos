@@ -68,16 +68,7 @@ export default function ServiciosCliente({ clientes, clienteInicial }: { cliente
         {clienteId && pestana === "checkin" && <Servicio key={clienteId + "c"} clienteId={clienteId} servicio="Checkin" />}
         {clienteId && pestana === "limpieza" && <Servicio key={clienteId + "l"} clienteId={clienteId} servicio="Limpieza" />}
         {clienteId && pestana === "gestion" && (
-          <div className="space-y-6">
-            <VariablesCliente
-              key={clienteId + "g"}
-              clienteId={clienteId}
-              campos={[
-                { key: "pct_comision_gestion", etiqueta: "% comisión de gestión (parte del facturado que queda para Botones)", tipo: "numero" },
-              ]}
-            />
-            <ReglasGestion key={clienteId} clienteId={clienteId} />
-          </div>
+          <ReglasGestion key={clienteId} clienteId={clienteId} />
         )}
       </div>
     </div>
@@ -265,7 +256,8 @@ function Servicio({ clienteId, servicio }: { clienteId: string; servicio: "Check
                     )}
                   </p>
                   <p className="mt-0.5 text-xs text-ink/60">
-                    Facturado {eur(t.facturado_bruto)} · % comisión {t.pct_comision ?? "—"} · Hora MO {eur(t.mo_bruto)} bruto /{" "}
+                    Facturado {eur(t.facturado_bruto)}
+                    {servicio === "Limpieza" && ` · % para Botones ${t.pct_comision ?? "—"}`} · Hora MO {eur(t.mo_bruto)} bruto /{" "}
                     {eur(t.mo_neto)} neto
                   </p>
                   {t.notas && <p className="mt-0.5 text-xs text-ink/40">{t.notas}</p>}
@@ -378,11 +370,15 @@ function EditarTarifa({
             <label>Facturado por servicio (€)</label>
             <input inputMode="decimal" value={f.facturado_bruto} onChange={set("facturado_bruto")} />
           </div>
-          <div>
-            <label>% comisión (parte para Botones)</label>
-            <input inputMode="decimal" value={f.pct_comision} onChange={set("pct_comision")} />
-          </div>
-          <div />
+          {servicio === "Limpieza" ? (
+            <div>
+              <label>% del facturado para Botones</label>
+              <input inputMode="decimal" value={f.pct_comision} onChange={set("pct_comision")} />
+            </div>
+          ) : (
+            <div />
+          )}
+          <div className="hidden sm:block" />
           <div>
             <label>Hora MO bruto (€)</label>
             <input inputMode="decimal" value={f.mo_bruto} onChange={set("mo_bruto")} />

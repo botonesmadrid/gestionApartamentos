@@ -855,13 +855,15 @@ function EditarLinea({
               onChange={set("facturado_bruto")}
             />
           </Campo>
-          <Campo etiqueta="% comisión">
-            <input
-              inputMode="decimal"
-              value={f.pct_comision}
-              onChange={set("pct_comision")}
-            />
-          </Campo>
+          {f.servicio === "Limpieza" && (
+            <Campo etiqueta="% para Botones">
+              <input
+                inputMode="decimal"
+                value={f.pct_comision}
+                onChange={set("pct_comision")}
+              />
+            </Campo>
+          )}
           <Campo etiqueta="% IVA">
             <input
               inputMode="decimal"
