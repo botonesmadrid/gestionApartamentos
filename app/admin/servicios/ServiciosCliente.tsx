@@ -257,8 +257,7 @@ function Servicio({ clienteId, servicio }: { clienteId: string; servicio: "Check
                   </p>
                   <p className="mt-0.5 text-xs text-ink/60">
                     Facturado {eur(t.facturado_bruto)}
-                    {servicio === "Limpieza" && ` · % para Botones ${t.pct_comision ?? "—"}`} · Hora MO {eur(t.mo_bruto)} bruto /{" "}
-                    {eur(t.mo_neto)} neto
+                    {servicio === "Limpieza" && ` · % para Botones ${t.pct_comision ?? "—"}`}
                   </p>
                   {t.notas && <p className="mt-0.5 text-xs text-ink/40">{t.notas}</p>}
                 </button>
@@ -370,23 +369,12 @@ function EditarTarifa({
             <label>Facturado por servicio (€)</label>
             <input inputMode="decimal" value={f.facturado_bruto} onChange={set("facturado_bruto")} />
           </div>
-          {servicio === "Limpieza" ? (
+          {servicio === "Limpieza" && (
             <div>
               <label>% del facturado para Botones</label>
               <input inputMode="decimal" value={f.pct_comision} onChange={set("pct_comision")} />
             </div>
-          ) : (
-            <div />
           )}
-          <div className="hidden sm:block" />
-          <div>
-            <label>Hora MO bruto (€)</label>
-            <input inputMode="decimal" value={f.mo_bruto} onChange={set("mo_bruto")} />
-          </div>
-          <div>
-            <label>Hora MO neto (€)</label>
-            <input inputMode="decimal" value={f.mo_neto} onChange={set("mo_neto")} />
-          </div>
           <div className="sm:col-span-2">
             <label>Notas</label>
             <input value={f.notas} onChange={set("notas")} />
