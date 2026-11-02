@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción (a la espera de confirmación).
+-- Aplicada en producción el 2026-11-02.
 -- Ajustes manuales por línea: valores escritos a mano en el Sheet (coste de MO sin horas,
 -- facturado neto distinto de Q×R) que prevalecen sobre la fórmula. Se rellenan desde el Sheet.
 alter table public.ingresos
