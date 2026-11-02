@@ -9,9 +9,10 @@ import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password", "/f/"];
 
-// Menú lateral: Entradas primero, luego Maestros
+// Menú lateral: Entradas primero, luego Ingresos y Maestros
 const ITEMS_LATERAL = [
   { href: "/", etiqueta: "Entradas", icono: IconoEntradas },
+  { href: "/ingresos", etiqueta: "Ingresos", icono: IconoIngresos },
   { href: "/admin/maestros", etiqueta: "Maestros", icono: IconoMaestros },
 ];
 
@@ -160,6 +161,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </button>
           <Link
+            href="/ingresos"
+            onClick={() => setPanelPendientes(false)}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname?.startsWith("/ingresos") ? "text-ink" : "text-ink/45"}`}
+          >
+            <IconoIngresos />
+            Ingresos
+          </Link>
+          <Link
             href="/admin/maestros"
             onClick={() => setPanelPendientes(false)}
             className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname?.startsWith("/admin/maestros") ? "text-ink" : "text-ink/45"}`}
@@ -231,6 +240,14 @@ function IconoPendientes() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M12 3a7 7 0 0 0-7 7v3.5L3.5 16h17L19 13.5V10a7 7 0 0 0-7-7Z" />
       <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+function IconoIngresos() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
     </svg>
   );
 }

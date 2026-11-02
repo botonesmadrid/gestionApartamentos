@@ -1,4 +1,4 @@
-export type TipoCampo = "text" | "select";
+export type TipoCampo = "text" | "select" | "numero";
 
 export interface CampoSelect {
   tabla: string;
@@ -65,6 +65,17 @@ export const MAESTROS: MaestroConfig[] = [
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },
       { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos", tipo: "text", enlace: "carpeta" },
       { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato", tipo: "text", enlace: "documento" },
+      // Ingresos: tarifas vigentes. Cada línea nueva copia estos valores; cambiarlos no altera el histórico.
+      { key: "prefijo_ingresos", etiqueta: "Prefijo nº ingresos (si no, el código)", tipo: "text", enLista: false },
+      { key: "tarifa_checkin", etiqueta: "Ingresos · Facturado por Checkin (€)", tipo: "numero", enLista: false },
+      { key: "tarifa_limpieza", etiqueta: "Ingresos · Facturado por Limpieza (€)", tipo: "numero", enLista: false },
+      { key: "pct_comision_limpieza", etiqueta: "Ingresos · % comisión limpieza", tipo: "numero", enLista: false },
+      { key: "iva_pct", etiqueta: "Ingresos · % IVA incluido en el precio", tipo: "numero", requerido: true, enLista: false },
+      { key: "mo_checkin_bruto", etiqueta: "Ingresos · Hora MO Checkin bruto (€)", tipo: "numero", requerido: true, enLista: false },
+      { key: "mo_checkin_neto", etiqueta: "Ingresos · Hora MO Checkin neto (€)", tipo: "numero", requerido: true, enLista: false },
+      { key: "mo_limpieza_bruto", etiqueta: "Ingresos · Hora MO Limpieza bruto (€)", tipo: "numero", requerido: true, enLista: false },
+      { key: "mo_limpieza_neto", etiqueta: "Ingresos · Hora MO Limpieza neto (€)", tipo: "numero", requerido: true, enLista: false },
+      { key: "pisos_ocupacion", etiqueta: "Ingresos · Nº de pisos (para % ocupación)", tipo: "numero", requerido: true, enLista: false },
     ],
   },
   {

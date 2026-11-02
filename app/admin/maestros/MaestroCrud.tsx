@@ -32,6 +32,16 @@ function EnlaceDrive({ tipo, id }: { tipo: "carpeta" | "documento"; id: string }
   );
 }
 
+// Campos numéricos: aceptan coma decimal ("24,40"); vacío = sin valor.
+function valorParaGuardar(tipo: string, v: any) {
+  if (v === "" || v === undefined || v === null) return null;
+  if (tipo === "numero") {
+    const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : v; // si no es un número, que lo rechace la base de datos con su mensaje
+  }
+  return v;
+}
+
 function filaVacia(config: MaestroConfig): Fila {
   const fila: Fila = {};
   for (const campo of config.campos) fila[campo.key] = "";
@@ -125,7 +135,7 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
   async function guardarEdicion() {
     setError("");
     const cambios: Fila = {};
-    for (const campo of config.campos) cambios[campo.key] = borrador[campo.key] || null;
+    for (const campo of config.campos) cambios[campo.key] = valorParaGuardar(campo.tipo, borrador[campo.key]);
 
     const { error: err } = await supabase
       .from(config.tabla)
@@ -153,7 +163,7 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
     }
 
     const insertar: Fila = {};
-    for (const campo of config.campos) insertar[campo.key] = nuevaFila[campo.key] || null;
+    for (const campo of config.campos) insertar[campo.key] = valorParaGuardar(campo.tipo, nuevaFila[campo.key]);
 
     if (config.campoAutoUsuario) {
       const {
@@ -194,6 +204,16 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
             </option>
           ))}
         </select>
+      );
+    }
+    if (campo.tipo === "numero") {
+      return (
+        <input
+          inputMode="decimal"
+          value={valor ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+        />
       );
     }
     if (campo.enlace) {
