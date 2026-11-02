@@ -15,7 +15,7 @@ type Regla = {
   vigente_desde: string;
   tipo: "porcentaje" | "tramos";
   porcentaje: number | null;
-  base_calculo: "precio" | "precio_sin_comision";
+  base_calculo: keyof typeof BASES;
   ambito: "piso" | "cliente";
   fijo_adicional: number;
   concepto_fijo: string | null;
@@ -26,7 +26,11 @@ type Regla = {
 const eur = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 const fecha = (iso: string) => iso.split("-").reverse().join("/");
-const BASES = { precio: "Precio de las reservas", precio_sin_comision: "Precio − comisión del portal" };
+const BASES = {
+  precio: "Precio de las reservas",
+  precio_sin_comision: "Precio − comisión del portal",
+  precio_sin_comision_ni_limpieza: "Precio − comisión del portal − limpiezas (100 %)",
+};
 const AMBITOS = { cliente: "Todo el cliente", piso: "Cada piso por separado" };
 
 export default function ReglasGestion({ clienteId }: { clienteId: string }) {
