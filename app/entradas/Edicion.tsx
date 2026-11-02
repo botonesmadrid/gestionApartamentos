@@ -202,7 +202,16 @@ export function EditarReserva({
     if (importe !== null) cambios.importe_pendiente = false; // con importe, ya no queda pendiente
 
     setGuardando(true);
-    const { error: err } = await supabase.from("reservas").update(cambios).eq("id", reserva.id);
+    // Sin id: alta manual de una entrada (p. ej. reservas confirmadas fuera de Avirato).
+    const { error: err } = reserva.id
+      ? await supabase.from("reservas").update(cambios).eq("id", reserva.id)
+      : await supabase.from("reservas").insert({
+          ...cambios,
+          comision_portal: cambios.comision_portal ?? (importe_neto === null ? comision : null),
+          importe_pendiente: importe === null,
+          estado: "confirmada",
+          canal: "manual",
+        });
     setGuardando(false);
     if (err) return setError(err.message);
     window.dispatchEvent(new Event("pendientes-cambiados"));

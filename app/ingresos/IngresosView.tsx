@@ -49,6 +49,7 @@ type Linea = {
   facturado_neto_manual: number | null;
   coste_mo_bruto_manual: number | null;
   coste_mo_neto_manual: number | null;
+  cantidad: number | null;
 };
 
 const MESES = [
@@ -349,7 +350,7 @@ export default function IngresosView({
                     </>
                   ) : (
                     <>
-                      <th className="w-24 px-2 py-2 text-right font-medium">
+                      <th className="w-32 px-2 py-2 text-right font-medium">
                         Bruto
                       </th>
                       <th className="w-14 px-2 py-2 text-right font-medium">
@@ -387,7 +388,8 @@ export default function IngresosView({
                       {l.cliente}
                     </td>
                     <td className="truncate px-3 py-2" title={l.motivo ?? ""}>
-                      {l.motivo ?? "—"}
+                      {Number(l.cantidad ?? 1) !== 1 && <span className="mr-1 font-medium">{Number(l.cantidad)} ×</span>}
+{l.motivo ?? "—"}
                       {l.codigo_reserva && (
                         <span className="ml-2 text-xs text-ink/40">
                           {l.codigo_reserva}
@@ -423,8 +425,8 @@ export default function IngresosView({
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-2 text-right">
-                          {num(l.facturado_bruto)}
+                        <td className="px-2 py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                          <ImporteEditable linea={l} onGuardado={cargar} />
                         </td>
                         <td className="px-2 py-2 text-right text-ink/60">
                           {l.pct_comision_limpieza != null
@@ -459,7 +461,8 @@ export default function IngresosView({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium">{l.motivo ?? "—"}</p>
+                      <p className="truncate font-medium">{Number(l.cantidad ?? 1) !== 1 && <span className="mr-1 font-medium">{Number(l.cantidad)} ×</span>}
+{l.motivo ?? "—"}</p>
                       <p className="text-xs text-ink/50">
                         {l.cliente} · {l.piso ?? "—"} · {fecha(l.entrada)} →{" "}
                         {fecha(l.salida)}
@@ -564,6 +567,7 @@ function EditarLinea({
     mo_si_no: s(linea?.mo_si_no),
     horario: s(linea?.horario),
     facturado_bruto: s(linea?.facturado_bruto),
+    cantidad: s(linea?.cantidad ?? 1),
     pct_comision: s(linea?.pct_comision_limpieza),
     iva_pct: s(linea?.iva_pct),
     mo_unitario_bruto: s(linea?.mo_unitario_bruto),
@@ -586,13 +590,27 @@ function EditarLinea({
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    // Nº de servicios: si cambia y no se ha tocado el importe, el importe se ajusta en proporción.
+    const cantidad = n(f.cantidad) ?? 1;
+    let facturadoBruto = n(f.facturado_bruto);
+    if (
+      linea &&
+      facturadoBruto != null &&
+      f.facturado_bruto === s(linea.facturado_bruto) &&
+      Number(linea.cantidad ?? 1) !== cantidad &&
+      Number(linea.cantidad ?? 1) > 0
+    ) {
+      facturadoBruto = Math.round((facturadoBruto / Number(linea.cantidad ?? 1)) * cantidad * 100) / 100;
+    }
+    if (Number.isNaN(cantidad) || cantidad <= 0) return setError("El nº de servicios debe ser mayor que 0.");
     const comunes = {
+      cantidad,
       horas_mo: n(f.horas_mo),
       mo: t(f.mo),
       mo_si_no: t(f.mo_si_no),
       horario: t(f.horario),
       // Tarifas de la línea: en una línea nueva, si se dejan vacías se copian las del cliente.
-      facturado_bruto: n(f.facturado_bruto),
+      facturado_bruto: facturadoBruto,
       pct_comision: n(f.pct_comision),
       iva_pct: n(f.iva_pct),
       mo_unitario_bruto: n(f.mo_unitario_bruto),
@@ -818,10 +836,19 @@ function EditarLinea({
         <p className="mt-0.5 text-xs text-ink/40">
           {linea
             ? "Se fijaron al crear la línea; cambiarlas aquí solo afecta a esta línea."
-            : "Déjalas vacías para usar las tarifas actuales del cliente (Administración → Servicios por cliente)."}
+            : f.servicio === "Limpieza"
+              ? "Para una línea que agrupe las limpiezas del mes, indica el nº de servicios y deja el importe vacío: se calcula como nº × tarifa vigente del cliente (Administración → Servicios por cliente)."
+              : "Déjalas vacías para usar las tarifas actuales del cliente (Administración → Servicios por cliente)."}
         </p>
-        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Campo etiqueta="Facturado Botones">
+        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Campo etiqueta="Nº de servicios">
+            <input
+              inputMode="decimal"
+              value={f.cantidad}
+              onChange={set("cantidad")}
+            />
+          </Campo>
+          <Campo etiqueta="Facturado Botones (total de la línea)">
             <input
               inputMode="decimal"
               value={f.facturado_bruto}

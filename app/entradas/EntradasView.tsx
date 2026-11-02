@@ -791,6 +791,7 @@ export default function EntradasView({
   const [detalleReserva, setDetalleReserva] = useState<Reserva | null>(null);
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
   const [editando, setEditando] = useState(false);
+  const [nueva, setNueva] = useState(false);
   const cerrarDetalle = () => {
     setDetalleReserva(null);
     setDetalleHuesped(null);
@@ -875,6 +876,62 @@ export default function EntradasView({
 
   return (
     <div>
+      <div className="mb-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setNueva(true)}
+          className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-paper hover:bg-ink/90"
+        >
+          + Nueva entrada
+        </button>
+      </div>
+      {nueva && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center sm:px-4" onClick={() => setNueva(false)}>
+          <div
+            className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 sm:rounded-lg sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="font-display text-xl font-semibold">Nueva entrada</h2>
+              <button type="button" onClick={() => setNueva(false)} className="text-sm text-ink/50 hover:text-ink">
+                Cerrar
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-ink/50">
+              Para reservas confirmadas que no llegan por Avirato. Sigue el mismo flujo que el resto: importe, formulario
+              de huéspedes, contrato y check-in.
+            </p>
+            <EditarReserva
+              reserva={{
+                id: "",
+                apartamento_id: apartamentoId || apartamentos.find((a) => a.piso !== "SIN ASIGNAR")?.id || apartamentos[0]?.id || "",
+                fecha_reserva: hoyISO(),
+                fecha_entrada: "",
+                fecha_salida: "",
+                nombre: "",
+                apellido1: null,
+                apellido2: null,
+                importe: null,
+                importe_neto: null,
+                comision_portal: null,
+                importe_pendiente: true,
+                codigo_reserva: null,
+                telefono: null,
+                origen_codigo: null,
+                forma_pago_codigo: null,
+                fecha_pago: null,
+                num_huespedes: null,
+              }}
+              apartamentos={apartamentos}
+              onGuardado={() => {
+                setNueva(false);
+                cargar();
+              }}
+              onCancelar={() => setNueva(false)}
+            />
+          </div>
+        </div>
+      )}
       {/* Filtros */}
       <div className="rounded-lg border border-line bg-white p-4">
         <div className="mb-4">
