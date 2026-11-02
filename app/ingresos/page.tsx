@@ -16,7 +16,7 @@ export default async function IngresosPage() {
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <h1 className="font-display text-3xl font-semibold">Ingresos</h1>
       <p className="mt-1 text-sm text-ink/60">
-        Una línea por servicio. Las reservas de Entradas aparecen solas como Checkin; aquí solo se añade lo que falta.
+        Una línea por servicio. Check-in, Limpieza y Gestión. Lo que viene de Entradas se genera solo; aquí se añade y ajusta el resto.
       </p>
       <div className="mt-6">
         <IngresosView clientes={clientes ?? []} origenes={origenes ?? []} />

@@ -9,13 +9,14 @@ import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password", "/f/"];
 
-// Menú lateral: Entradas primero, luego Ingresos y Maestros
-const ITEMS_LATERAL = [
+// Módulos de la app: barra inferior en móvil, barra superior en escritorio y también en el menú lateral.
+const MODULOS = [
   { href: "/", etiqueta: "Entradas", icono: IconoEntradas },
   { href: "/ingresos", etiqueta: "Ingresos", icono: IconoIngresos },
-  { href: "/admin/maestros", etiqueta: "Maestros", icono: IconoMaestros },
+  { href: "/gastos", etiqueta: "Gastos", icono: IconoGastos },
+  { href: "/facturacion", etiqueta: "Facturación", icono: IconoFacturacion },
+  { href: "/reporting", etiqueta: "Reporting", icono: IconoReporting },
 ];
-
 
 // Nº de reservas por tipo de acción pendiente (mismos criterios que el filtro del listado).
 function usePendientes(activo: boolean, pathname: string | null) {
@@ -54,8 +55,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const ocultarNav = RUTAS_SIN_NAV.some((r) => pathname?.startsWith(r));
   const pendientes = usePendientes(!ocultarNav, pathname);
-  const [panelPendientes, setPanelPendientes] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const totalPendientes = Object.values(pendientes).reduce((n, x) => n + (x ?? 0), 0);
+
+  // Al navegar se cierra el menú lateral desplegable.
+  useEffect(() => setMenuAbierto(false), [pathname]);
 
   if (ocultarNav) return <>{children}</>;
 
@@ -67,161 +71,170 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   function activo(href: string) {
     if (href === "/") return pathname === "/";
-    return pathname?.startsWith(href);
+    return !!pathname?.startsWith(href);
   }
 
-  return (
-    <div className="flex min-h-screen">
-      {/* Menú lateral */}
-      <aside className="hidden w-56 flex-col items-stretch border-r border-line bg-white px-4 py-6 md:flex">
-        <Link href="/" className="mb-8 flex justify-center px-2 sm:justify-start">
-          <Image
-            src="/logo-botones.jpg"
-            alt="Botones"
-            width={40}
-            height={40}
-            className="rounded"
-            priority
-          />
-        </Link>
-        <nav className="flex flex-1 flex-col gap-1">
-          {ITEMS_LATERAL.map((item) => (
-            <div key={item.href}>
+  // Contenido del menú lateral: módulos, filtros de acciones bajo Entradas y administración.
+  const menuLateral = (
+    <div className="flex h-full flex-col">
+      <nav className="flex flex-1 flex-col gap-1">
+        {MODULOS.map((item) => (
+          <div key={item.href}>
             <Link
               href={item.href}
               className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
-                activo(item.href)
-                  ? "bg-ink text-paper"
-                  : "text-ink/60 hover:bg-paper hover:text-ink"
+                activo(item.href) ? "bg-ink text-paper" : "text-ink/60 hover:bg-paper hover:text-ink"
               }`}
-              title={item.etiqueta}
             >
               <item.icono />
-              <span className="hidden sm:inline">{item.etiqueta}</span>
+              <span>{item.etiqueta}</span>
             </Link>
             {item.href === "/" && (
-              <ul className="mb-2 mt-1 space-y-0.5 sm:ml-3 sm:border-l sm:border-line sm:pl-2">
-                {ACCIONES.filter((a) => (pendientes[a.clave] ?? 0) > 0).map((a) => (
-                  <li key={a.clave}>
-                    <Link
-                      href={`/?accion=${a.clave}`}
-                      onClick={(e) => irAAccion(e, pathname, a.clave)}
-                      title={`${pendientes[a.clave]} · ${a.ayuda}`}
-                      className="flex items-center justify-center gap-2 rounded-md px-2 py-1 text-xs text-ink/70 hover:bg-amber-50 hover:text-ink sm:justify-between"
-                    >
-                      <span className="hidden truncate sm:inline">{a.etiqueta}</span>
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white">
-                        {pendientes[a.clave]}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            </div>
-          ))}
-        </nav>
-        <button
-          onClick={salir}
-          className="mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm text-ink/40 hover:bg-paper hover:text-ink"
-          title="Salir"
-        >
-          <IconoSalir />
-          <span className="hidden sm:inline">Salir</span>
-        </button>
-      </aside>
-
-      <div className="flex flex-1 flex-col">
-        <main className="min-w-0 flex-1 pb-24 md:pb-0">{children}</main>
-
-        {/* Móvil: barra inferior tipo app (con margen para la zona segura del iPhone) */}
-        <nav
-          className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-white/95 backdrop-blur md:hidden"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <Link
-            href="/"
-            onClick={() => setPanelPendientes(false)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname === "/" ? "text-ink" : "text-ink/45"}`}
-          >
-            <IconoEntradas />
-            Entradas
-          </Link>
-          <button
-            type="button"
-            onClick={() => setPanelPendientes((v) => !v)}
-            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${panelPendientes ? "text-ink" : "text-ink/45"}`}
-          >
-            <IconoPendientes />
-            Pendientes
-            {totalPendientes > 0 && (
-              <span className="absolute right-[calc(50%-1.4rem)] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
-                {totalPendientes}
-              </span>
-            )}
-          </button>
-          <Link
-            href="/ingresos"
-            onClick={() => setPanelPendientes(false)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname?.startsWith("/ingresos") ? "text-ink" : "text-ink/45"}`}
-          >
-            <IconoIngresos />
-            Ingresos
-          </Link>
-          <Link
-            href="/admin/maestros"
-            onClick={() => setPanelPendientes(false)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${pathname?.startsWith("/admin/maestros") ? "text-ink" : "text-ink/45"}`}
-          >
-            <IconoMaestros />
-            Maestros
-          </Link>
-          <button type="button" onClick={salir} className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-ink/45">
-            <IconoSalir />
-            Salir
-          </button>
-        </nav>
-
-        {/* Móvil: panel de pendientes por tipo de acción */}
-        {panelPendientes && (
-          <div className="fixed inset-0 z-30 bg-ink/30 md:hidden" onClick={() => setPanelPendientes(false)}>
-            <div
-              className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white px-4 pt-3 shadow-xl"
-              style={{ paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line" />
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink/50">Pendientes</p>
-              {totalPendientes === 0 ? (
-                <p className="py-4 text-sm text-ink/50">No hay nada pendiente. 🎉</p>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {ACCIONES.filter((a) => (pendientes[a.clave] ?? 0) > 0).map((a) => (
+              <ul className="mb-2 ml-3 mt-1 space-y-0.5 border-l border-line pl-2">
+                {ACCIONES.map((a) => {
+                  const n = pendientes[a.clave] ?? 0;
+                  return (
                     <li key={a.clave}>
                       <Link
                         href={`/?accion=${a.clave}`}
                         onClick={(e) => {
-                          setPanelPendientes(false);
+                          setMenuAbierto(false);
                           irAAccion(e, pathname, a.clave);
                         }}
-                        className="flex items-center justify-between gap-3 py-3"
+                        title={a.ayuda}
+                        className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs text-ink/70 hover:bg-amber-50 hover:text-ink"
                       >
-                        <span>
-                          <span className="block text-sm font-medium">{a.etiqueta}</span>
-                          <span className="block text-xs text-ink/50">{a.ayuda}</span>
-                        </span>
-                        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-semibold text-white">
-                          {pendientes[a.clave]}
+                        <span className="truncate">{a.etiqueta}</span>
+                        <span
+                          className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                            n > 0 ? "bg-amber-500 text-white" : "bg-paper text-ink/40"
+                          }`}
+                        >
+                          {n}
                         </span>
                       </Link>
                     </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                  );
+                })}
+              </ul>
+            )}
           </div>
-        )}
+        ))}
+
+        <p className="mb-1 mt-5 px-3 text-[11px] font-medium uppercase tracking-wide text-ink/40">Administración</p>
+        <Link
+          href="/admin/maestros"
+          className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
+            activo("/admin/maestros") ? "bg-ink text-paper" : "text-ink/60 hover:bg-paper hover:text-ink"
+          }`}
+        >
+          <IconoMaestros />
+          <span>Maestros</span>
+        </Link>
+      </nav>
+      <button
+        onClick={salir}
+        className="mt-4 flex items-center gap-3 rounded-md px-3 py-2 text-sm text-ink/40 hover:bg-paper hover:text-ink"
+      >
+        <IconoSalir />
+        <span>Salir</span>
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      {/* Cabecera: en escritorio lleva los módulos; en móvil solo el botón del menú lateral */}
+      <header
+        className="sticky top-0 z-40 flex items-center gap-3 border-b border-line bg-white/95 px-3 backdrop-blur md:px-4"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setMenuAbierto(true)}
+          aria-label="Abrir menú"
+          className="relative -ml-1 rounded-md p-2 text-ink/70 hover:bg-paper lg:hidden"
+        >
+          <IconoMenu />
+          {totalPendientes > 0 && (
+            <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500" />
+          )}
+        </button>
+        <Link href="/" className="flex shrink-0 items-center py-2">
+          <Image src="/logo-botones.jpg" alt="Botones" width={32} height={32} className="rounded" priority />
+        </Link>
+        <span className="text-sm font-medium md:hidden">
+          {MODULOS.find((m) => activo(m.href))?.etiqueta ?? (activo("/admin/maestros") ? "Maestros" : "")}
+        </span>
+        <nav className="ml-4 hidden h-14 items-stretch gap-1 md:flex">
+          {MODULOS.map((m) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className={`relative flex items-center gap-2 border-b-2 px-3 text-sm ${
+                activo(m.href) ? "border-ink font-medium text-ink" : "border-transparent text-ink/55 hover:text-ink"
+              }`}
+            >
+              <m.icono />
+              {m.etiqueta}
+              {m.href === "/" && totalPendientes > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-white">
+                  {totalPendientes}
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+      </header>
+
+      <div className="flex flex-1">
+        {/* Menú lateral fijo en pantallas grandes */}
+        <aside className="hidden w-60 shrink-0 border-r border-line bg-white px-4 py-6 lg:block">
+          <div className="sticky top-20">{menuLateral}</div>
+        </aside>
+
+        <main className="min-w-0 flex-1 pb-24 md:pb-0">{children}</main>
       </div>
+
+      {/* Menú lateral desplegable (móvil y tablet) */}
+      {menuAbierto && (
+        <div className="fixed inset-0 z-50 bg-ink/30 lg:hidden" onClick={() => setMenuAbierto(false)}>
+          <div
+            className="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-white px-4 shadow-xl"
+            style={{
+              paddingTop: "calc(1.25rem + env(safe-area-inset-top))",
+              paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {menuLateral}
+          </div>
+        </div>
+      )}
+
+      {/* Móvil: barra inferior con los módulos (con margen para la zona segura del iPhone) */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-white/95 backdrop-blur md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {MODULOS.map((m) => (
+          <Link
+            key={m.href}
+            href={m.href}
+            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${
+              activo(m.href) ? "text-ink" : "text-ink/45"
+            }`}
+          >
+            <m.icono />
+            {m.etiqueta}
+            {m.href === "/" && totalPendientes > 0 && (
+              <span className="absolute right-[calc(50%-1.4rem)] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                {totalPendientes}
+              </span>
+            )}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
@@ -235,11 +248,37 @@ function IconoEntradas() {
   );
 }
 
-function IconoPendientes() {
+function IconoMenu() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function IconoGastos() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M12 3a7 7 0 0 0-7 7v3.5L3.5 16h17L19 13.5V10a7 7 0 0 0-7-7Z" />
-      <path d="M10 19a2 2 0 0 0 4 0" />
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20M6 15h4" />
+    </svg>
+  );
+}
+
+function IconoFacturacion() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6 2h9l5 5v15H6z" />
+      <path d="M14 2v6h6M9 13h7M9 17h7" />
+    </svg>
+  );
+}
+
+function IconoReporting() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3v9l7.5 4.5" />
+      <circle cx="12" cy="12" r="9" />
     </svg>
   );
 }
