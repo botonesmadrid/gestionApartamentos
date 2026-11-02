@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción (a la espera de confirmación).
+-- Aplicada en producción el 2026-11-02 en tres partes (tablas, cálculo, consolidación + cierre automático).
 -- Reglas de facturación de Gestión por cliente, historizadas por fecha de vigencia.
 -- * porcentaje: % sobre la facturación del mes (Barco, Chueca).
 -- * tramos: cuota según el tramo de facturación alcanzado (Casa Malasaña). La línea base lleva la cuota
