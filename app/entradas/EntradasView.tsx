@@ -145,6 +145,9 @@ function euros(n: number) {
 
 // Burbuja de acción pendiente: falta el importe con comisión del portal.
 // Con `cambiar`, en vez de la burbuja muestra un enlace "Cambiar" para corregir un importe ya puesto.
+// Importe pendiente de una reserva de portal. Según cómo llega el precio de Avirato:
+//  * Booking: llega CON comisión (importe) → se pide la comisión y el neto se calcula (importe − comisión).
+//  * Airbnb y demás: llega SIN comisión (neto) → se pide el importe con comisión y la comisión se calcula.
 function ImportePendiente({
   reserva,
   onGuardado,
@@ -155,25 +158,35 @@ function ImportePendiente({
   cambiar?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  // Se pide la comisión cuando se conoce el importe con comisión y no el neto (Booking).
+  const pideComision = reserva.importe != null && reserva.importe_neto == null;
+  const inicial = cambiar
+    ? pideComision
+      ? reserva.comision_portal != null ? String(reserva.comision_portal) : ""
+      : reserva.importe != null ? String(reserva.importe) : ""
+    : "";
   const [abierto, setAbierto] = useState(false);
-  const [valor, setValor] = useState(cambiar && reserva.importe != null ? String(reserva.importe) : "");
+  const [valor, setValor] = useState(inicial);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
-  const total = valor === "" ? null : Number(valor.replace(",", "."));
-  const neto = reserva.importe_neto;
-  const comision = total != null && neto != null ? total - neto : null;
+  const num = valor === "" ? null : Number(valor.replace(",", "."));
+  const total = pideComision ? reserva.importe : num;
+  const neto = pideComision ? (num != null && total != null ? total - num : null) : reserva.importe_neto;
+  const comision = pideComision ? num : total != null && neto != null ? total - neto : null;
   const pct = comision != null && total ? (comision / total) * 100 : null;
-  const valido = total != null && Number.isFinite(total) && total > 0 && (neto == null || total >= neto);
+  const valido = pideComision
+    ? num != null && Number.isFinite(num) && num >= 0 && total != null && num < total
+    : num != null && Number.isFinite(num) && num > 0 && (neto == null || num >= neto);
 
   async function guardar() {
     if (!valido) return;
     setGuardando(true);
     setError("");
-    const { error: err } = await supabase
-      .from("reservas")
-      .update({ importe: total, importe_pendiente: false })
-      .eq("id", reserva.id);
+    const cambios = pideComision
+      ? { importe_neto: Math.round((total! - num!) * 100) / 100, comision_portal: num, importe_pendiente: false }
+      : { importe: num, importe_pendiente: false };
+    const { error: err } = await supabase.from("reservas").update(cambios).eq("id", reserva.id);
     setGuardando(false);
     if (err) {
       setError(err.message);
@@ -187,7 +200,7 @@ function ImportePendiente({
   if (!abierto && cambiar) {
     return (
       <button type="button" onClick={() => setAbierto(true)} className="text-xs text-ink/50 underline hover:text-ink">
-        Cambiar
+        {pideComision ? "Cambiar comisión" : "Cambiar"}
       </button>
     );
   }
@@ -198,23 +211,26 @@ function ImportePendiente({
         type="button"
         onClick={() => setAbierto(true)}
         className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200"
-        title="Introducir el importe total con la comisión del portal"
+        title={pideComision ? "Introducir la comisión del portal (el importe ya incluye la comisión)" : "Introducir el importe total con la comisión del portal"}
       >
         <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-        Falta importe con comisión
-        {neto != null && <span className="font-normal text-amber-800/80">· neto {euros(neto)}</span>}
+        {pideComision ? "Falta comisión" : "Falta importe con comisión"}
+        {pideComision
+          ? <span className="font-normal text-amber-800/80">· importe {euros(reserva.importe!)}</span>
+          : neto != null && <span className="font-normal text-amber-800/80">· neto {euros(neto)}</span>}
       </button>
     );
   }
 
+  const etiqueta = pideComision ? "Comisión del portal" : "Importe con comisión";
   return (
     <div className="flex flex-wrap items-center gap-2">
       <input
         type="text"
         inputMode="decimal"
         autoFocus
-        aria-label="Importe con comisión"
-        placeholder="Importe con comisión"
+        aria-label={etiqueta}
+        placeholder={etiqueta}
         className="!w-36"
         value={valor}
         onChange={(e) => setValor(e.target.value)}
@@ -234,14 +250,17 @@ function ImportePendiente({
       <button type="button" onClick={() => setAbierto(false)} className="text-xs text-ink/50 hover:text-ink">
         Cancelar
       </button>
-      {comision != null && valido && (
-        <span className={`text-xs ${pct != null && (pct < 10 || pct > 30) ? "text-clay" : "text-ink/50"}`}>
-          Comisión {euros(comision)} ({pct!.toFixed(1)} %)
-          {pct != null && (pct < 10 || pct > 30) ? " · revisa el importe" : ""}
+      {valido && pct != null && (
+        <span className={`text-xs ${pct < 10 || pct > 30 ? "text-clay" : "text-ink/50"}`}>
+          {pideComision ? `Neto ${euros(neto!)} · ` : `Comisión ${euros(comision!)} · `}
+          {pct.toFixed(1)} %{pct < 10 || pct > 30 ? " · revisa el importe" : ""}
         </span>
       )}
-      {total != null && neto != null && total < neto && (
+      {!pideComision && num != null && neto != null && num < neto && (
         <span className="text-xs text-clay">No puede ser menor que el neto ({euros(neto)}).</span>
+      )}
+      {pideComision && num != null && total != null && num >= total && (
+        <span className="text-xs text-clay">La comisión tiene que ser menor que el importe ({euros(total)}).</span>
       )}
       {error && <span className="text-xs text-clay">{error}</span>}
     </div>
@@ -559,7 +578,9 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
       clave: "importe",
       etiqueta: !r.importe_pendiente && r.importe != null ? euros(r.importe) : "Importe",
       hecho: !r.importe_pendiente,
-      titulo: r.importe_pendiente ? "Falta el importe con comisión" : "Importe con comisión",
+      titulo: r.importe_pendiente
+        ? r.importe != null && r.importe_neto == null ? "Falta la comisión" : "Falta el importe con comisión"
+        : "Importe con comisión",
     },
     {
       clave: "huespedes",
