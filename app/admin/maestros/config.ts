@@ -1,4 +1,4 @@
-export type TipoCampo = "text" | "select" | "numero" | "sino";
+export type TipoCampo = "text" | "select" | "numero" | "sino" | "check";
 
 export interface CampoSelect {
   tabla: string;
@@ -14,6 +14,7 @@ export interface MaestroCampo {
   select?: CampoSelect;
   enLista?: boolean; // false: solo en el formulario, no como columna de la tabla
   enlace?: "carpeta" | "documento"; // ID de Google Drive/Docs: se muestra un enlace para abrirlo
+  defecto?: string; // valor inicial en el alta ("true"/"false" para los check)
 }
 
 export interface MaestroConfig {
@@ -67,6 +68,19 @@ export const MAESTROS: MaestroConfig[] = [
       { key: "emails_facturacion", etiqueta: "Emails para enviar las facturas (separados por comas)", tipo: "text", enLista: false },
       { key: "drive_carpeta_id", etiqueta: "Carpeta raíz de contratos", tipo: "text", enlace: "carpeta" },
       { key: "drive_plantilla_id", etiqueta: "Plantilla de contrato", tipo: "text", enlace: "documento" },
+    ],
+  },
+  {
+    slug: "conceptos-gasto",
+    titulo: "Conceptos de gasto",
+    tabla: "conceptos_gasto",
+    pk: "id",
+    pkGenerada: true,
+    ordenarPor: "nombre",
+    campos: [
+      { key: "nombre", etiqueta: "Concepto", tipo: "text", requerido: true },
+      // Solo los conceptos marcados cuentan en el IVA trimestral (Gastos → IVA trimestral).
+      { key: "impacta_iva", etiqueta: "Impacta en el IVA", tipo: "check", defecto: "true" },
     ],
   },
   {

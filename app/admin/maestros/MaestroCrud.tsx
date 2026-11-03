@@ -35,6 +35,7 @@ function EnlaceDrive({ tipo, id }: { tipo: "carpeta" | "documento"; id: string }
 // Campos numéricos: aceptan coma decimal ("24,40"); vacío = sin valor.
 function valorParaGuardar(tipo: string, v: any) {
   // Sí/No: vacío (alta nueva sin tocar) = valor por defecto de la base de datos.
+  if (tipo === "check") return v === true || v === "true";
   if (tipo === "sino") return v === "" || v === null || v === undefined ? undefined : v === true || v === "true";
   if (v === "" || v === undefined || v === null) return null;
   if (tipo === "numero") {
@@ -46,7 +47,7 @@ function valorParaGuardar(tipo: string, v: any) {
 
 function filaVacia(config: MaestroConfig): Fila {
   const fila: Fila = {};
-  for (const campo of config.campos) fila[campo.key] = "";
+  for (const campo of config.campos) fila[campo.key] = campo.defecto ?? "";
   return fila;
 }
 
@@ -206,6 +207,17 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
             </option>
           ))}
         </select>
+      );
+    }
+    if (campo.tipo === "check") {
+      return (
+        <input
+          type="checkbox"
+          className="!w-auto"
+          checked={valor === true || valor === "true"}
+          onChange={(e) => onChange(String(e.target.checked))}
+          disabled={disabled}
+        />
       );
     }
     if (campo.tipo === "sino") {
@@ -377,7 +389,11 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
                       const texto =
                         campo.tipo === "select"
                           ? etiquetaDe(campo.key, fila[campo.key])
-                          : campo.tipo === "sino"
+                          : campo.tipo === "check"
+                            ? fila[campo.key] === true || fila[campo.key] === "true"
+                              ? "✓"
+                              : "—"
+                            : campo.tipo === "sino"
                             ? fila[campo.key] === false || fila[campo.key] === "false"
                               ? "No"
                               : "Sí"

@@ -575,7 +575,8 @@ function IvaTrimestral() {
           </div>
           <p className="mt-2 text-xs text-ink/40">
             IVA a pagar = IVA de las facturas emitidas − IVA de las facturas recibidas, por fecha de factura. Se recalcula
-            solo con cada factura que se añade o modifica en la pestaña Facturas.
+            solo con cada factura que se añade o modifica en la pestaña Facturas. De las facturas recibidas solo cuentan las
+            de conceptos de gasto marcados como «Impacta en el IVA» (Administración → Maestros → Conceptos de gasto).
           </p>
         </>
       )}
