@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/auth") ||
     request.nextUrl.pathname.startsWith("/cuenta/nueva-password") ||
     request.nextUrl.pathname.startsWith("/f/") || // formulario público de huéspedes
-    request.nextUrl.pathname === "/registro"; // enlace general del formulario (búsqueda por nº de reserva)
+    request.nextUrl.pathname === "/registro"; // formulario público de huéspedes (enlace único para todas las reservas)
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();

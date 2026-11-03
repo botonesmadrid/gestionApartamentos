@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva } from "./Edicion";
 import { AccionesEntrada, MoverHuesped } from "./Combinar";
+import RegistrosPendientes from "./RegistrosPendientes";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 type Apartamento = { id: string; piso: string };
@@ -383,8 +384,8 @@ function EnlacesContrato({ reserva }: { reserva: Reserva }) {
   );
 }
 
-// Enlace general del formulario (el mismo para todas las reservas): para las plantillas de mensajes de los
-// portales. El huésped indica su número de reserva y su fecha de entrada y llega al formulario de su reserva.
+// Enlace único del formulario (el mismo para todas las reservas): para las plantillas de mensajes de los portales.
+// Los huéspedes rellenan sus fechas y los datos de todos; se vincula a la entrada por la fecha y el nombre.
 function EnlaceGeneral() {
   const [copiado, setCopiado] = useState(false);
   async function copiar() {
@@ -401,7 +402,7 @@ function EnlaceGeneral() {
     <button
       type="button"
       onClick={copiar}
-      title="El mismo enlace para todas las reservas: el huésped escribe su nº de reserva y su fecha de entrada"
+      title="El mismo enlace para todas las reservas: los huéspedes rellenan sus fechas y los datos de todos"
       className="rounded-md border border-line px-3 py-1.5 text-sm text-ink/70 hover:text-ink"
     >
       {copiado ? "Enlace copiado ✓" : "Copiar enlace general del formulario"}
@@ -950,6 +951,7 @@ export default function EntradasView({
   return (
     <div>
       <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <RegistrosPendientes onCambio={cargar} />
         <EnlaceGeneral />
         <button
           type="button"

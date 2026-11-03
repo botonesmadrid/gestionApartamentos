@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
-const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password", "/f/"];
+const RUTAS_SIN_NAV = ["/login", "/auth", "/cuenta/nueva-password", "/f/", "/registro"];
 
 // Módulos de la app: barra inferior en móvil, barra superior en escritorio y también en el menú lateral.
 const MODULOS = [

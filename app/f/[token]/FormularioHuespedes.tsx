@@ -10,8 +10,14 @@ import { createClient } from "@/lib/supabase/client";
 // Solo usa las funciones formulario_* de la base de datos (validan el token).
 // ---------------------------------------------------------------------------
 
-type Idioma = "es" | "en";
-type Opcion = { codigo: string; nombre?: string; descripcion?: string };
+export type Idioma = "es" | "en";
+export type Opcion = { codigo: string; nombre?: string; descripcion?: string };
+export type Catalogos = {
+  paises: Opcion[];
+  tipos_documento: Opcion[];
+  sexos: Opcion[];
+  parentescos: Opcion[];
+};
 type Datos = {
   estado: "ok" | "no_encontrado" | "cerrado";
   titular: string;
@@ -27,7 +33,7 @@ type Datos = {
   parentescos: Opcion[];
 };
 
-type Huesped = {
+export type Huesped = {
   nombre: string;
   apellido1: string;
   apellido2: string;
@@ -50,7 +56,7 @@ type Huesped = {
   consentimiento: boolean;
 };
 
-const VACIO: Huesped = {
+export const VACIO: Huesped = {
   nombre: "", apellido1: "", apellido2: "", nacionalidad_codigo: "", sexo_codigo: "",
   fecha_nacimiento: "", tipo_documento_codigo: "", numero_documento: "", soporte_documento: "",
   pais_codigo: "", direccion: "", codigo_postal: "", codigo_municipio_ref: "", municipio_texto: "",
@@ -103,7 +109,7 @@ const PARENTESCOS: Record<string, { es: string; en: string }> = {
 // Países más habituales primero.
 const PAISES_TOP = ["ESP", "USA", "GBR", "FRA", "ITA", "DEU", "PRT", "NLD", "MEX", "ARG"];
 
-const T = {
+export const T = {
   es: {
     cabecera: "Registro de huéspedes",
     intro: (t: string) =>
@@ -235,7 +241,7 @@ const PRIVACIDAD = {
 
 // --- Validaciones -----------------------------------------------------------
 const LETRAS_DNI = "TRWAGMYFPDXBNJZSQVHLCKE";
-const limpiarDoc = (v: string) => v.toUpperCase().replace(/[\s-]/g, "");
+export const limpiarDoc = (v: string) => v.toUpperCase().replace(/[\s-]/g, "");
 function dniValido(v: string) {
   const m = limpiarDoc(v).match(/^(\d{8})([A-Z])$/);
   return !!m && LETRAS_DNI[Number(m[1]) % 23] === m[2];
@@ -249,9 +255,9 @@ function nieValido(v: string) {
 const correoValido = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
 const telefonoValido = (v: string) => v.replace(/\D/g, "").length >= 7;
 
-type Errores = Partial<Record<keyof Huesped, string>>;
+export type Errores = Partial<Record<keyof Huesped, string>>;
 
-function validarPaso(paso: number, h: Huesped, t: (typeof T)["es"]): Errores {
+export function validarPaso(paso: number, h: Huesped, t: (typeof T)["es"]): Errores {
   const e: Errores = {};
   const req = (k: keyof Huesped) => {
     if (typeof h[k] === "string" && !(h[k] as string).trim()) e[k] = t.obligatorio;
@@ -285,7 +291,7 @@ function validarPaso(paso: number, h: Huesped, t: (typeof T)["es"]): Errores {
   return e;
 }
 
-function fechaLarga(iso: string, idioma: Idioma) {
+export function fechaLarga(iso: string, idioma: Idioma) {
   return new Date(iso + "T00:00:00").toLocaleDateString(idioma === "es" ? "es-ES" : "en-GB", {
     weekday: "short", day: "numeric", month: "long",
   });
@@ -305,7 +311,6 @@ export default function FormularioHuespedes({ token }: { token: string }) {
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState("");
   const [recienRegistrado, setRecienRegistrado] = useState<string | null>(null);
-  const [verPrivacidad, setVerPrivacidad] = useState(false);
   const arriba = useRef<HTMLDivElement>(null);
   const claveBorrador = `formulario-${token}`;
 
@@ -396,11 +401,11 @@ export default function FormularioHuespedes({ token }: { token: string }) {
     arriba.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const paises = useMemo(() => {
-    const lista = datos?.paises ?? [];
-    const top = PAISES_TOP.map((c) => lista.find((p) => p.codigo === c)).filter(Boolean) as Opcion[];
-    return { top, resto: lista.filter((p) => !PAISES_TOP.includes(p.codigo)) };
-  }, [datos?.paises]);
+  const paises = usePaises(datos?.paises);
+  const buscarMunicipio = async (q: string) => {
+    const { data } = await supabase.rpc("formulario_municipios", { p_token: token, p_q: q });
+    return (data as { codigo: string; nombre: string }[]) ?? [];
+  };
 
   // ---- Pantallas especiales ------------------------------------------------
   const marco = { idioma, setIdioma, titulo: t.cabecera, refArriba: arriba };
@@ -500,167 +505,16 @@ export default function FormularioHuespedes({ token }: { token: string }) {
             else enviar();
           }}
         >
-          {paso === 0 && (
-            <>
-              <Campo id="nombre" etiqueta={t.nombre} error={errores.nombre}>
-                <input id="nombre" autoComplete="given-name" value={h.nombre} onChange={(e) => cambiar("nombre", e.target.value)} />
-              </Campo>
-              <Campo id="apellido1" etiqueta={t.apellido1} error={errores.apellido1}>
-                <input id="apellido1" autoComplete="family-name" value={h.apellido1} onChange={(e) => cambiar("apellido1", e.target.value)} />
-              </Campo>
-              <Campo id="nacionalidad" etiqueta={t.nacionalidad} error={errores.nacionalidad_codigo}>
-                <SelectPais id="nacionalidad" valor={h.nacionalidad_codigo} paises={paises} placeholder={t.elige} onChange={(v) => cambiar("nacionalidad_codigo", v)} />
-              </Campo>
-              <Campo
-                id="apellido2"
-                etiqueta={t.apellido2}
-                opcional={h.nacionalidad_codigo !== "ESP" ? t.opcional : undefined}
-                ayuda={h.nacionalidad_codigo !== "ESP" ? t.apellido2Ayuda : undefined}
-                error={errores.apellido2}
-              >
-                <input id="apellido2" value={h.apellido2} onChange={(e) => cambiar("apellido2", e.target.value)} />
-              </Campo>
-              <Campo id="sexo" etiqueta={t.sexo} error={errores.sexo_codigo}>
-                <Botones
-                  nombre="sexo"
-                  valor={h.sexo_codigo}
-                  opciones={(datos.sexos ?? []).map((s) => ({ valor: s.codigo, etiqueta: SEXOS[s.codigo]?.[idioma] ?? s.descripcion ?? s.codigo }))}
-                  onChange={(v) => cambiar("sexo_codigo", v)}
-                />
-              </Campo>
-              <Campo id="fecha_nacimiento" etiqueta={t.fechaNac} error={errores.fecha_nacimiento}>
-                <input
-                  id="fecha_nacimiento"
-                  type="date"
-                  autoComplete="bday"
-                  max={new Date().toISOString().slice(0, 10)}
-                  value={h.fecha_nacimiento}
-                  onChange={(e) => cambiar("fecha_nacimiento", e.target.value)}
-                />
-              </Campo>
-            </>
-          )}
-
-          {paso === 1 && (
-            <>
-              <Campo id="tipo_documento" etiqueta={t.tipoDoc} ayuda={t.tipoDocAyuda} error={errores.tipo_documento_codigo}>
-                <Botones
-                  nombre="tipo_documento"
-                  vertical
-                  valor={h.tipo_documento_codigo}
-                  opciones={ORDEN_DOC.filter((c) => datos.tipos_documento?.some((d) => d.codigo === c)).map((c) => ({
-                    valor: c,
-                    etiqueta: TIPOS_DOC[c]?.[idioma] ?? c,
-                  }))}
-                  onChange={(v) => cambiar("tipo_documento_codigo", v)}
-                />
-              </Campo>
-              <Campo id="numero_documento" etiqueta={t.numDoc} error={errores.numero_documento}>
-                <input
-                  id="numero_documento"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={h.numero_documento}
-                  onChange={(e) => cambiar("numero_documento", e.target.value)}
-                />
-              </Campo>
-              {(h.tipo_documento_codigo === "NIF" || h.tipo_documento_codigo === "NIE") && (
-                <Campo id="soporte_documento" etiqueta={t.soporte} ayuda={t.soporteAyuda} error={errores.soporte_documento}>
-                  <input
-                    id="soporte_documento"
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={h.soporte_documento}
-                    onChange={(e) => cambiar("soporte_documento", e.target.value)}
-                  />
-                </Campo>
-              )}
-            </>
-          )}
-
-          {paso === 2 && (
-            <>
-              <Campo id="pais" etiqueta={t.paisRes} error={errores.pais_codigo}>
-                <SelectPais id="pais" valor={h.pais_codigo} paises={paises} placeholder={t.elige} onChange={(v) => cambiar("pais_codigo", v)} />
-              </Campo>
-              <Campo id="direccion" etiqueta={t.direccion} error={errores.direccion}>
-                <input id="direccion" autoComplete="street-address" value={h.direccion} onChange={(e) => cambiar("direccion", e.target.value)} />
-              </Campo>
-              <Campo id="codigo_postal" etiqueta={t.cp} error={errores.codigo_postal}>
-                <input id="codigo_postal" autoComplete="postal-code" value={h.codigo_postal} onChange={(e) => cambiar("codigo_postal", e.target.value)} />
-              </Campo>
-              {h.pais_codigo === "ESP" ? (
-                <Campo id="municipio" etiqueta={t.municipio} error={errores.codigo_municipio_ref}>
-                  <BuscadorMunicipio
-                    token={token}
-                    seleccionado={h.municipio_texto}
-                    placeholder={t.municipioBuscar}
-                    onElegir={(codigo, nombre) => {
-                      cambiar("codigo_municipio_ref", codigo);
-                      cambiar("municipio_texto", nombre);
-                    }}
-                  />
-                </Campo>
-              ) : (
-                <Campo id="nombre_municipio" etiqueta={t.ciudad} error={errores.nombre_municipio}>
-                  <input id="nombre_municipio" autoComplete="address-level2" value={h.nombre_municipio} onChange={(e) => cambiar("nombre_municipio", e.target.value)} />
-                </Campo>
-              )}
-            </>
-          )}
-
-          {paso === 3 && (
-            <>
-              <Campo id="parentesco" etiqueta={t.parentesco} ayuda={t.parentescoAyuda} error={errores.parentesco_codigo}>
-                <select id="parentesco" value={h.parentesco_codigo} onChange={(e) => cambiar("parentesco_codigo", e.target.value)}>
-                  <option value="">{t.elige}</option>
-                  {Object.entries(PARENTESCOS)
-                    .filter(([c]) => datos.parentescos?.some((p) => p.codigo === c))
-                    .map(([c, n]) => (
-                      <option key={c} value={c}>
-                        {n[idioma]}
-                      </option>
-                    ))}
-                </select>
-              </Campo>
-              <Campo id="telefono" etiqueta={t.telefono} error={errores.telefono}>
-                <input id="telefono" type="tel" autoComplete="tel" inputMode="tel" placeholder="+34 600 000 000" value={h.telefono} onChange={(e) => cambiar("telefono", e.target.value)} />
-              </Campo>
-              <Campo id="correo" etiqueta={t.correo} error={errores.correo}>
-                <input id="correo" type="email" autoComplete="email" inputMode="email" value={h.correo} onChange={(e) => cambiar("correo", e.target.value)} />
-              </Campo>
-              <Campo id="motivo" etiqueta={t.motivo} error={errores.motivo_viaje}>
-                <select id="motivo" value={h.motivo_viaje} onChange={(e) => cambiar("motivo_viaje", e.target.value)}>
-                  <option value="">{t.elige}</option>
-                  {MOTIVOS.map((m) => (
-                    <option key={m} value={m}>
-                      {idioma === "es" ? m.split(" / ")[0].replace(/\.$/, "") : (m.split(" / ")[1] ?? m)}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-
-              <div className="rounded-lg border border-line bg-paper p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-ink/50">{t.privacidad}</p>
-                <button type="button" onClick={() => setVerPrivacidad((v) => !v)} className="mt-1 text-xs text-ink/60 underline">
-                  {t.privacidadLeer}
-                </button>
-                {verPrivacidad && <p className="mt-2 text-xs leading-relaxed text-ink/70">{PRIVACIDAD[idioma]}</p>}
-                <label className="!mb-0 mt-3 flex items-start gap-2.5 !text-sm !font-normal !text-ink">
-                  <input
-                    type="checkbox"
-                    className="!mt-0.5 !w-auto shrink-0"
-                    checked={h.consentimiento}
-                    onChange={(e) => cambiar("consentimiento", e.target.checked)}
-                  />
-                  <span>{t.acepto}</span>
-                </label>
-                {errores.consentimiento && <p className="mt-1 text-xs text-clay">{errores.consentimiento}</p>}
-              </div>
-            </>
-          )}
+          <CamposPaso
+            paso={paso}
+            h={h}
+            cambiar={cambiar}
+            errores={errores}
+            catalogos={datos}
+            idioma={idioma}
+            paises={paises}
+            buscarMunicipio={buscarMunicipio}
+          />
 
           {errorEnvio && <p className="rounded-md bg-clay/10 px-3 py-2 text-sm text-clay">{errorEnvio}</p>}
 
@@ -686,11 +540,208 @@ export default function FormularioHuespedes({ token }: { token: string }) {
   );
 }
 
+// Campos de un paso del formulario de un huésped (compartido por el enlace de reserva y el de propiedad).
+export function CamposPaso({
+  paso,
+  h,
+  cambiar,
+  errores,
+  catalogos,
+  idioma,
+  paises,
+  buscarMunicipio,
+}: {
+  paso: number;
+  h: Huesped;
+  cambiar: <K extends keyof Huesped>(k: K, v: Huesped[K]) => void;
+  errores: Errores;
+  catalogos: Catalogos;
+  idioma: Idioma;
+  paises: { top: Opcion[]; resto: Opcion[] };
+  buscarMunicipio: (q: string) => Promise<{ codigo: string; nombre: string }[]>;
+}) {
+  const t = T[idioma];
+  const [verPrivacidad, setVerPrivacidad] = useState(false);
+  return (
+    <>
+    {paso === 0 && (
+      <>
+        <Campo id="nombre" etiqueta={t.nombre} error={errores.nombre}>
+          <input id="nombre" autoComplete="given-name" value={h.nombre} onChange={(e) => cambiar("nombre", e.target.value)} />
+        </Campo>
+        <Campo id="apellido1" etiqueta={t.apellido1} error={errores.apellido1}>
+          <input id="apellido1" autoComplete="family-name" value={h.apellido1} onChange={(e) => cambiar("apellido1", e.target.value)} />
+        </Campo>
+        <Campo id="nacionalidad" etiqueta={t.nacionalidad} error={errores.nacionalidad_codigo}>
+          <SelectPais id="nacionalidad" valor={h.nacionalidad_codigo} paises={paises} placeholder={t.elige} onChange={(v) => cambiar("nacionalidad_codigo", v)} />
+        </Campo>
+        <Campo
+          id="apellido2"
+          etiqueta={t.apellido2}
+          opcional={h.nacionalidad_codigo !== "ESP" ? t.opcional : undefined}
+          ayuda={h.nacionalidad_codigo !== "ESP" ? t.apellido2Ayuda : undefined}
+          error={errores.apellido2}
+        >
+          <input id="apellido2" value={h.apellido2} onChange={(e) => cambiar("apellido2", e.target.value)} />
+        </Campo>
+        <Campo id="sexo" etiqueta={t.sexo} error={errores.sexo_codigo}>
+          <Botones
+            nombre="sexo"
+            valor={h.sexo_codigo}
+            opciones={(catalogos.sexos ?? []).map((s) => ({ valor: s.codigo, etiqueta: SEXOS[s.codigo]?.[idioma] ?? s.descripcion ?? s.codigo }))}
+            onChange={(v) => cambiar("sexo_codigo", v)}
+          />
+        </Campo>
+        <Campo id="fecha_nacimiento" etiqueta={t.fechaNac} error={errores.fecha_nacimiento}>
+          <input
+            id="fecha_nacimiento"
+            type="date"
+            autoComplete="bday"
+            max={new Date().toISOString().slice(0, 10)}
+            value={h.fecha_nacimiento}
+            onChange={(e) => cambiar("fecha_nacimiento", e.target.value)}
+          />
+        </Campo>
+      </>
+    )}
+
+    {paso === 1 && (
+      <>
+        <Campo id="tipo_documento" etiqueta={t.tipoDoc} ayuda={t.tipoDocAyuda} error={errores.tipo_documento_codigo}>
+          <Botones
+            nombre="tipo_documento"
+            vertical
+            valor={h.tipo_documento_codigo}
+            opciones={ORDEN_DOC.filter((c) => catalogos.tipos_documento?.some((d) => d.codigo === c)).map((c) => ({
+              valor: c,
+              etiqueta: TIPOS_DOC[c]?.[idioma] ?? c,
+            }))}
+            onChange={(v) => cambiar("tipo_documento_codigo", v)}
+          />
+        </Campo>
+        <Campo id="numero_documento" etiqueta={t.numDoc} error={errores.numero_documento}>
+          <input
+            id="numero_documento"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            value={h.numero_documento}
+            onChange={(e) => cambiar("numero_documento", e.target.value)}
+          />
+        </Campo>
+        {(h.tipo_documento_codigo === "NIF" || h.tipo_documento_codigo === "NIE") && (
+          <Campo id="soporte_documento" etiqueta={t.soporte} ayuda={t.soporteAyuda} error={errores.soporte_documento}>
+            <input
+              id="soporte_documento"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              value={h.soporte_documento}
+              onChange={(e) => cambiar("soporte_documento", e.target.value)}
+            />
+          </Campo>
+        )}
+      </>
+    )}
+
+    {paso === 2 && (
+      <>
+        <Campo id="pais" etiqueta={t.paisRes} error={errores.pais_codigo}>
+          <SelectPais id="pais" valor={h.pais_codigo} paises={paises} placeholder={t.elige} onChange={(v) => cambiar("pais_codigo", v)} />
+        </Campo>
+        <Campo id="direccion" etiqueta={t.direccion} error={errores.direccion}>
+          <input id="direccion" autoComplete="street-address" value={h.direccion} onChange={(e) => cambiar("direccion", e.target.value)} />
+        </Campo>
+        <Campo id="codigo_postal" etiqueta={t.cp} error={errores.codigo_postal}>
+          <input id="codigo_postal" autoComplete="postal-code" value={h.codigo_postal} onChange={(e) => cambiar("codigo_postal", e.target.value)} />
+        </Campo>
+        {h.pais_codigo === "ESP" ? (
+          <Campo id="municipio" etiqueta={t.municipio} error={errores.codigo_municipio_ref}>
+            <BuscadorMunicipio
+              buscar={buscarMunicipio}
+              seleccionado={h.municipio_texto}
+              placeholder={t.municipioBuscar}
+              onElegir={(codigo, nombre) => {
+                cambiar("codigo_municipio_ref", codigo);
+                cambiar("municipio_texto", nombre);
+              }}
+            />
+          </Campo>
+        ) : (
+          <Campo id="nombre_municipio" etiqueta={t.ciudad} error={errores.nombre_municipio}>
+            <input id="nombre_municipio" autoComplete="address-level2" value={h.nombre_municipio} onChange={(e) => cambiar("nombre_municipio", e.target.value)} />
+          </Campo>
+        )}
+      </>
+    )}
+
+    {paso === 3 && (
+      <>
+        <Campo id="parentesco" etiqueta={t.parentesco} ayuda={t.parentescoAyuda} error={errores.parentesco_codigo}>
+          <select id="parentesco" value={h.parentesco_codigo} onChange={(e) => cambiar("parentesco_codigo", e.target.value)}>
+            <option value="">{t.elige}</option>
+            {Object.entries(PARENTESCOS)
+              .filter(([c]) => catalogos.parentescos?.some((p) => p.codigo === c))
+              .map(([c, n]) => (
+                <option key={c} value={c}>
+                  {n[idioma]}
+                </option>
+              ))}
+          </select>
+        </Campo>
+        <Campo id="telefono" etiqueta={t.telefono} error={errores.telefono}>
+          <input id="telefono" type="tel" autoComplete="tel" inputMode="tel" placeholder="+34 600 000 000" value={h.telefono} onChange={(e) => cambiar("telefono", e.target.value)} />
+        </Campo>
+        <Campo id="correo" etiqueta={t.correo} error={errores.correo}>
+          <input id="correo" type="email" autoComplete="email" inputMode="email" value={h.correo} onChange={(e) => cambiar("correo", e.target.value)} />
+        </Campo>
+        <Campo id="motivo" etiqueta={t.motivo} error={errores.motivo_viaje}>
+          <select id="motivo" value={h.motivo_viaje} onChange={(e) => cambiar("motivo_viaje", e.target.value)}>
+            <option value="">{t.elige}</option>
+            {MOTIVOS.map((m) => (
+              <option key={m} value={m}>
+                {idioma === "es" ? m.split(" / ")[0].replace(/\.$/, "") : (m.split(" / ")[1] ?? m)}
+              </option>
+            ))}
+          </select>
+        </Campo>
+
+        <div className="rounded-lg border border-line bg-paper p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink/50">{t.privacidad}</p>
+          <button type="button" onClick={() => setVerPrivacidad((v) => !v)} className="mt-1 text-xs text-ink/60 underline">
+            {t.privacidadLeer}
+          </button>
+          {verPrivacidad && <p className="mt-2 text-xs leading-relaxed text-ink/70">{PRIVACIDAD[idioma]}</p>}
+          <label className="!mb-0 mt-3 flex items-start gap-2.5 !text-sm !font-normal !text-ink">
+            <input
+              type="checkbox"
+              className="!mt-0.5 !w-auto shrink-0"
+              checked={h.consentimiento}
+              onChange={(e) => cambiar("consentimiento", e.target.checked)}
+            />
+            <span>{t.acepto}</span>
+          </label>
+          {errores.consentimiento && <p className="mt-1 text-xs text-clay">{errores.consentimiento}</p>}
+        </div>
+      </>
+    )}
+    </>
+  );
+}
+
+export function usePaises(lista: Opcion[] | undefined) {
+  return useMemo(() => {
+    const l = lista ?? [];
+    const top = PAISES_TOP.map((c) => l.find((p) => p.codigo === c)).filter(Boolean) as Opcion[];
+    return { top, resto: l.filter((p) => !PAISES_TOP.includes(p.codigo)) };
+  }, [lista]);
+}
+
 // --- Piezas -------------------------------------------------------------------
 
 // Marco de la página (fuera del componente principal para que los campos no
 // se vuelvan a crear —y pierdan el foco— en cada pulsación).
-function Marco({
+export function Marco({
   idioma,
   setIdioma,
   titulo,
@@ -731,7 +782,7 @@ function Marco({
   );
 }
 
-function Campo({
+export function Campo({
   id,
   etiqueta,
   ayuda,
@@ -763,7 +814,7 @@ function Campo({
   );
 }
 
-function Botones({
+export function Botones({
   nombre,
   valor,
   opciones,
@@ -799,7 +850,7 @@ function Botones({
   );
 }
 
-function SelectPais({
+export function SelectPais({
   id,
   valor,
   paises,
@@ -833,18 +884,17 @@ function SelectPais({
   );
 }
 
-function BuscadorMunicipio({
-  token,
+export function BuscadorMunicipio({
+  buscar,
   seleccionado,
   placeholder,
   onElegir,
 }: {
-  token: string;
+  buscar: (q: string) => Promise<{ codigo: string; nombre: string }[]>;
   seleccionado: string;
   placeholder: string;
   onElegir: (codigo: string, nombre: string) => void;
 }) {
-  const supabase = useMemo(() => createClient(), []);
   const [q, setQ] = useState(seleccionado);
   const [resultados, setResultados] = useState<{ codigo: string; nombre: string }[]>([]);
   const [abierto, setAbierto] = useState(false);
@@ -857,11 +907,11 @@ function BuscadorMunicipio({
       return;
     }
     const temporizador = setTimeout(async () => {
-      const { data } = await supabase.rpc("formulario_municipios", { p_token: token, p_q: q });
-      setResultados((data as { codigo: string; nombre: string }[]) ?? []);
+      setResultados(await buscar(q));
     }, 250);
     return () => clearTimeout(temporizador);
-  }, [q, abierto, seleccionado, supabase, token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, abierto, seleccionado]);
 
   return (
     <div className="relative">
