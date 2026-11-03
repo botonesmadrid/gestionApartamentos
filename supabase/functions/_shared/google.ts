@@ -95,6 +95,14 @@ export class Google {
       { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${frontera}` }, body: cuerpo },
     )).json();
   }
+  // Archivo con ese nombre dentro de la carpeta (no en la papelera), si existe.
+  async archivo(padre: string, nombre: string): Promise<{ id: string } | null> {
+    const q = `name='${nombre.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and '${padre}' in parents and trashed=false`;
+    const l = await (await this.req(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    )).json();
+    return l.files?.[0] ?? null;
+  }
   // Carpeta de una reserva: <raíz>/CONTRATOS DE ALQUILER <año>/<MM>.- <MES>/<DD>_<Nombre_Apellidos>_<piso>
   async carpetaReserva(raiz: string, fechaEntrada: string, nombreCompleto: string, piso: string): Promise<string> {
     const [y, m, d] = fechaEntrada.split("-");

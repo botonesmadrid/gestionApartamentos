@@ -13,8 +13,11 @@ import { aTextoPlano, leerAvisoAvirato } from "../_shared/avirato.ts";
 import { leerFirmaHelloSign } from "../_shared/hellosign.ts";
 import { Google, limpiarNombre, normalizar, titularDe } from "../_shared/google.ts";
 
-// Correos de firma completada de Dropbox Sign (HelloSign). Solo los recibidos desde la puesta en marcha.
-const CONSULTA_FIRMAS = 'from:noreply@mail.hellosign.com (subject:firmó OR subject:signed) has:attachment after:2026/11/01';
+// Correos de firma completada de Dropbox Sign (HelloSign). Desde el 3/11/2026 el correo es lo único que marca un
+// contrato como firmado; su PDF adjunto se guarda en la carpeta de la reserva. (Para octubre y noviembre de 2026 la
+// firma se verificó por el PDF firmado presente en la carpeta de Drive.)
+const CONSULTA_FIRMAS = 'from:noreply@mail.hellosign.com (subject:firmó OR subject:signed) has:attachment after:2026/11/03';
+const FIRMAS_POR_PASADA = 10; // para no agotar el tiempo de la función; el resto, en la siguiente pasada
 
 const CONSULTA = 'from:noreply@avirato.com subject:"Id reserva" newer_than:30d';
 
@@ -129,12 +132,12 @@ async function procesar(db: any) {
 async function procesarFirmas(db: any) {
   const token = await tokenGmail();
   const g = new Google(token);
-  const lista = await gmail(token, `messages?includeSpamTrash=true&maxResults=50&q=${encodeURIComponent(CONSULTA_FIRMAS)}`);
+  const lista = await gmail(token, `messages?includeSpamTrash=true&maxResults=200&q=${encodeURIComponent(CONSULTA_FIRMAS)}`);
   const ids: string[] = (lista.messages ?? []).map((m: any) => m.id);
   if (!ids.length) return { procesados: 0 };
   const { data: yaVistos } = await db.from("avisos_canal").select("mensaje_id").in("mensaje_id", ids);
   const vistos = new Set((yaVistos ?? []).map((v: any) => v.mensaje_id));
-  const nuevos = ids.filter((id) => !vistos.has(id)).reverse();
+  const nuevos = ids.filter((id) => !vistos.has(id)).reverse().slice(0, FIRMAS_POR_PASADA);
 
   const { data: clientes } = await db.from("clientes").select("id, nombre, drive_carpeta_id");
   const resultados = [];
@@ -165,22 +168,28 @@ async function procesarFirmas(db: any) {
     const cliente = (clientes ?? []).find((c: any) =>
       normalizar(c.nombre).split(" ").filter((w: string) => w.length > 3).some((w: string) => titulo.includes(w)));
 
-    // Candidatas: reservas confirmadas sin contrato firmado, recientes o futuras.
-    const desde = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+    // Candidatas: reservas confirmadas sin contrato firmado cuya estancia no había terminado al recibir el correo.
+    const dia = 864e5, t0 = Number(m.internalDate);
+    const desde = new Date(t0 - 10 * dia).toISOString().slice(0, 10);
+    const hasta = new Date(t0 + 400 * dia).toISOString().slice(0, 10);
     let q = db.from("reservas")
       .select(`id, nombre, apellido1, fecha_entrada, titular_huesped_id, contrato_carpeta_id, contrato_generado_at,
         apartamentos!inner(piso, cliente_id), huespedes!huespedes_reserva_id_fkey(id, created_at, nombre, apellido1, apellido2, correo)`)
-      .eq("estado", "confirmada").is("contrato_firmado_at", null).gte("fecha_salida", desde);
+      .eq("estado", "confirmada").is("contrato_firmado_at", null).gte("fecha_salida", desde).lte("fecha_entrada", hasta);
     if (cliente) q = q.eq("apartamentos.cliente_id", cliente.id);
     const { data: candidatas } = await q;
 
-    const nombreFirmante = normalizar(firma.firmante);
+    // El firmante coincide con una persona si contiene todas las palabras de su nombre y primer apellido (en cualquier orden).
+    const palabrasFirmante = new Set(normalizar(firma.firmante).split(/[^a-z0-9]+/).filter(Boolean));
+    const coincide = (nombre: string | null, apellido: string | null) => {
+      const ps = normalizar([nombre, apellido].filter(Boolean).join(" ")).split(/[^a-z0-9]+/).filter(Boolean);
+      return ps.length >= 2 && ps.every((p) => palabrasFirmante.has(p));
+    };
     const puntuadas = (candidatas ?? []).map((r: any) => {
       const t = titularDe(r);
       let puntos = 0;
       if (firma.email && (r.huespedes ?? []).some((h: any) => normalizar(h.correo) === firma.email)) puntos += 10;
-      const nombreTitular = normalizar([t?.nombre, t?.apellido1].filter(Boolean).join(" "));
-      if (nombreTitular && nombreFirmante.includes(nombreTitular)) puntos += 6;
+      if (coincide(r.nombre, r.apellido1) || (r.huespedes ?? []).some((h: any) => coincide(h.nombre, h.apellido1))) puntos += 6;
       const primerNombre = normalizar(r.nombre).split(" ")[0];
       if (primerNombre && (titulo.endsWith(primerNombre) || titulo.includes(` ${primerNombre}`))) puntos += 3;
       if (r.contrato_generado_at) puntos += 1;
@@ -202,7 +211,8 @@ async function procesarFirmas(db: any) {
       if (!carpeta) { await registrar("revisar", "el cliente no tiene carpeta de Drive configurada", r.id); continue; }
 
       const datosPdf = await g.adjuntoGmail(id, pdf.body.attachmentId);
-      const subido = await g.subirPdf(limpiarNombre(`Contrato_temporal_${piso}_${nombreCompleto}_FIRMADO`) + ".pdf", carpeta, datosPdf);
+      const nombrePdf = limpiarNombre(`Contrato_temporal_${piso}_${nombreCompleto}_FIRMADO`) + ".pdf";
+      const subido = (await g.archivo(carpeta, nombrePdf)) ?? await g.subirPdf(nombrePdf, carpeta, datosPdf);
       await db.from("reservas").update({
         contrato_firmado_at: recibido,
         contrato_firmado_pdf_id: subido.id,

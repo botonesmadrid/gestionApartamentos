@@ -329,6 +329,16 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
             Contrato para firma
           </a>
         )}
+        {reserva.contrato_firmado_pdf_id && (
+          <a
+            href={`https://drive.google.com/file/d/${reserva.contrato_firmado_pdf_id}/view`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white"
+          >
+            Contrato firmado
+          </a>
+        )}
         {carpetaUrl && (
           <a href={carpetaUrl} target="_blank" rel="noreferrer" className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink">
             Abrir carpeta
@@ -342,9 +352,9 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
       </div>
       <p className="mt-1.5 text-xs text-ink/50">
         {reserva.contrato_firmado_at
-          ? "Firmado. El documento firmado está en la carpeta de la reserva."
+          ? "Firmado: el PDF firmado está en la carpeta de la reserva."
           : generado
-            ? `Generado el ${generado}. Súbelo a HelloSign; al firmarse se guardará y marcará solo.`
+            ? `Generado el ${generado}. Súbelo a HelloSign; al llegar el correo de firma se guardará el PDF firmado y se marcará solo.`
             : "Aún no generado"}
       </p>
       {mensaje && (
@@ -616,8 +626,15 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
 
   // El formulario se completa solo cuando están registrados todos los huéspedes.
   // El contrato solo lo firma el titular.
-  const pasos: { etiqueta: string; hecho: string | null; campo: string; accion: string; disabled?: boolean; ayuda?: string }[] = [
-    { etiqueta: "Contrato firmado (titular)", hecho: reserva.contrato_firmado_at, campo: "contrato_firmado_at", accion: "Marcar firmado" },
+  // La firma del contrato no se marca a mano: la marca el correo de HelloSign (y su PDF firmado queda en la carpeta).
+  const pasos: { etiqueta: string; hecho: string | null; campo: string; accion: string; disabled?: boolean; ayuda?: string; automatico?: string }[] = [
+    {
+      etiqueta: "Contrato firmado (titular)",
+      hecho: reserva.contrato_firmado_at,
+      campo: "contrato_firmado_at",
+      accion: "",
+      automatico: "Se marca al llegar el correo de firma de HelloSign",
+    },
     {
       etiqueta: "Check-in",
       hecho: reserva.checkin_at,
@@ -672,7 +689,9 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
               {p.hecho ? "✓" : "○"} {p.etiqueta}
               {p.hecho && <span className="ml-2 text-xs text-ink/50">{fechaHora(p.hecho)}</span>}
             </span>
-            {!cancelada &&
+            {!cancelada && p.automatico ? (
+              !p.hecho && <span className="text-xs text-ink/50">{p.automatico}</span>
+            ) : !cancelada &&
               (p.hecho ? (
                 <button
                   type="button"
