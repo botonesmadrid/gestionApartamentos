@@ -13,10 +13,10 @@ import { aTextoPlano, leerAvisoAvirato } from "../_shared/avirato.ts";
 import { leerFirmaHelloSign } from "../_shared/hellosign.ts";
 import { Google, limpiarNombre, normalizar, titularDe } from "../_shared/google.ts";
 
-// Correos de firma completada de Dropbox Sign (HelloSign). Desde el 3/11/2026 el correo es lo único que marca un
-// contrato como firmado; su PDF adjunto se guarda en la carpeta de la reserva. (Para octubre y noviembre de 2026 la
-// firma se verificó por el PDF firmado presente en la carpeta de Drive.)
-const CONSULTA_FIRMAS = 'from:noreply@mail.hellosign.com (subject:firmó OR subject:signed) has:attachment after:2026/11/03';
+// Correos de firma completada de Dropbox Sign (HelloSign): el correo es lo único que marca un contrato como firmado;
+// su PDF adjunto se guarda en la carpeta de la reserva. Desde septiembre de 2026 llegan a este buzón (los de
+// septiembre-octubre se incorporaron el 3/11/2026 para las entradas de octubre y noviembre sin el PDF en la carpeta).
+const CONSULTA_FIRMAS = 'from:noreply@mail.hellosign.com (subject:firmó OR subject:signed) has:attachment after:2026/09/01';
 const FIRMAS_POR_PASADA = 10; // para no agotar el tiempo de la función; el resto, en la siguiente pasada
 
 const CONSULTA = 'from:noreply@avirato.com subject:"Id reserva" newer_than:30d';
