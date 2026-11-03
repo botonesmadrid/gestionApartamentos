@@ -384,12 +384,15 @@ function EnlacesContrato({ reserva }: { reserva: Reserva }) {
   );
 }
 
+// Dominio público de los formularios de huéspedes (CNAME en IONOS → Vercel).
+const DOMINIO_REGISTRO = "https://registro.botonesmadrid.com";
+
 // Enlace único del formulario (el mismo para todas las reservas): para las plantillas de mensajes de los portales.
 // Los huéspedes rellenan sus fechas y los datos de todos; se vincula a la entrada por la fecha y el nombre.
 function EnlaceGeneral() {
   const [copiado, setCopiado] = useState(false);
   async function copiar() {
-    const url = `${window.location.origin}/registro`;
+    const url = DOMINIO_REGISTRO;
     try {
       await navigator.clipboard.writeText(url);
       setCopiado(true);
@@ -435,7 +438,7 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
       });
   }, [reserva.id, supabase]);
 
-  const enlace = `${window.location.origin}/f/${reserva.formulario_token}`;
+  const enlace = `${DOMINIO_REGISTRO}/f/${reserva.formulario_token}`;
   const nombre = reserva.nombre.split(" ")[0];
   const n = reserva.num_huespedes;
   const fechas = `${formatoFecha(reserva.fecha_entrada)} – ${formatoFecha(reserva.fecha_salida)}`;
