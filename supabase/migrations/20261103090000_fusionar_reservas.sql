@@ -1,4 +1,4 @@
--- PENDIENTE de aplicar en producción (a la espera de confirmación).
+-- Aplicada en producción el 2026-11-03 (desde el editor SQL de Supabase).
 -- Entradas: fusionar dos entradas y mover huéspedes entre entradas.
 -- * fusionar_reservas(origen, destino): los huéspedes del origen pasan al destino; si el titular de la cabecera del
 --   origen no está entre ellos, se crea como huésped del destino. Sus líneas de Ingresos y avisos pasan al destino
