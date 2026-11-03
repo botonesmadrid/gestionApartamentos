@@ -383,6 +383,32 @@ function EnlacesContrato({ reserva }: { reserva: Reserva }) {
   );
 }
 
+// Enlace general del formulario (el mismo para todas las reservas): para las plantillas de mensajes de los
+// portales. El huésped indica su número de reserva y su fecha de entrada y llega al formulario de su reserva.
+function EnlaceGeneral() {
+  const [copiado, setCopiado] = useState(false);
+  async function copiar() {
+    const url = `${window.location.origin}/registro`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      window.prompt("Copia el enlace general del formulario:", url);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={copiar}
+      title="El mismo enlace para todas las reservas: el huésped escribe su nº de reserva y su fecha de entrada"
+      className="rounded-md border border-line px-3 py-1.5 text-sm text-ink/70 hover:text-ink"
+    >
+      {copiado ? "Enlace copiado ✓" : "Copiar enlace general del formulario"}
+    </button>
+  );
+}
+
 // Envío del enlace del formulario al titular: WhatsApp, email o copiar.
 function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado: () => void }) {
   const supabase = useMemo(() => createClient(), []);
@@ -923,7 +949,8 @@ export default function EntradasView({
 
   return (
     <div>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <EnlaceGeneral />
         <button
           type="button"
           onClick={() => setNueva(true)}
