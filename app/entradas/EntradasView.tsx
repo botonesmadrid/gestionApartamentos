@@ -354,6 +354,25 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
   );
 }
 
+// Enlaces del contrato en el detalle de la entrada: el generado para la firma, el firmado y la carpeta.
+function EnlacesContrato({ reserva }: { reserva: Reserva }) {
+  const enlaces = [
+    reserva.contrato_pdf_id && { texto: "Para firma", url: `https://drive.google.com/file/d/${reserva.contrato_pdf_id}/view` },
+    reserva.contrato_firmado_pdf_id && { texto: "Firmado", url: `https://drive.google.com/file/d/${reserva.contrato_firmado_pdf_id}/view` },
+    reserva.contrato_carpeta_id && { texto: "Carpeta", url: `https://drive.google.com/drive/folders/${reserva.contrato_carpeta_id}` },
+  ].filter(Boolean) as { texto: string; url: string }[];
+  if (!enlaces.length) return <span className="text-ink/40">Sin generar</span>;
+  return (
+    <span className="flex flex-wrap gap-x-3 gap-y-1">
+      {enlaces.map((e) => (
+        <a key={e.texto} href={e.url} target="_blank" rel="noreferrer" className="text-ink underline hover:text-clay">
+          {e.texto}
+        </a>
+      ))}
+    </span>
+  );
+}
+
 // Envío del enlace del formulario al titular: WhatsApp, email o copiar.
 function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado: () => void }) {
   const supabase = useMemo(() => createClient(), []);
@@ -1339,6 +1358,7 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Importe neto (portal)" valor={detalleReserva.importe_neto != null ? euros(detalleReserva.importe_neto) : null} />
           <FilaDetalle etiqueta="Estado" valor={<EtiquetaFase fase={detalleReserva.fase} />} />
           <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
+          <FilaDetalle etiqueta="Contrato" valor={<EnlacesContrato reserva={detalleReserva} />} />
           </dl>
           )}
           {!editando && (
