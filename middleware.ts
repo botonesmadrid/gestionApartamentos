@@ -1,7 +1,20 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Dominio público para los huéspedes: solo sirve los formularios; cualquier otra ruta (también la raíz) lleva
+// al formulario de enlace único.
+const DOMINIO_REGISTRO = "registro.botonesmadrid.com";
+
 export async function middleware(request: NextRequest) {
+  if (request.headers.get("host")?.split(":")[0] === DOMINIO_REGISTRO) {
+    const ruta = request.nextUrl.pathname;
+    if (ruta === "/registro" || ruta.startsWith("/f/")) return NextResponse.next({ request });
+    const url = request.nextUrl.clone();
+    url.pathname = "/registro";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
