@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva } from "./Edicion";
+import { AccionesEntrada, MoverHuesped } from "./Combinar";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 type Apartamento = { id: string; piso: string };
@@ -791,6 +792,7 @@ export default function EntradasView({
   const [pasosAbiertos, setPasosAbiertos] = useState<string | null>(null);
   const [detalleReserva, setDetalleReserva] = useState<Reserva | null>(null);
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
+  const [reservaDelHuesped, setReservaDelHuesped] = useState<Reserva | null>(null);
   const [editando, setEditando] = useState(false);
   const [nueva, setNueva] = useState(false);
   const cerrarDetalle = () => {
@@ -1265,7 +1267,10 @@ export default function EntradasView({
                             </label>
                             <button
                               type="button"
-                              onClick={() => setDetalleHuesped(h)}
+                              onClick={() => {
+                                setDetalleHuesped(h);
+                                setReservaDelHuesped(r);
+                              }}
                               className="ml-auto text-ink/50 underline hover:text-ink"
                             >
                               Detalle
@@ -1336,6 +1341,15 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
           </dl>
           )}
+          {!editando && (
+            <AccionesEntrada
+              reserva={detalleReserva}
+              onHecho={() => {
+                cerrarDetalle();
+                cargar();
+              }}
+            />
+          )}
         </ModalDetalle>
       )}
 
@@ -1381,6 +1395,17 @@ export default function EntradasView({
           <FilaDetalle etiqueta="Parentesco" valor={detalleHuesped.parentescos?.descripcion} />
           <FilaDetalle etiqueta="Motivo del viaje" valor={detalleHuesped.motivo_viaje} />
           </dl>
+          )}
+          {!editando && reservaDelHuesped && (
+            <MoverHuesped
+              huesped={detalleHuesped}
+              fechaRef={reservaDelHuesped.fecha_entrada}
+              reservaId={reservaDelHuesped.id}
+              onHecho={() => {
+                cerrarDetalle();
+                cargar();
+              }}
+            />
           )}
         </ModalDetalle>
       )}
