@@ -58,6 +58,7 @@ type Huesped = {
 type Reserva = {
   id: string;
   apartamento_id: string;
+  piso_pendiente: boolean;
   fecha_reserva: string | null;
   fecha_entrada: string;
   fecha_salida: string;
@@ -106,7 +107,7 @@ type Fase =
   | "cancelada";
 
 const FASES: { valor: Fase; etiqueta: string; clase: string }[] = [
-  { valor: "pendiente_importe", etiqueta: "Pendiente de importe", clase: "bg-amber-100 text-amber-900" },
+  { valor: "pendiente_importe", etiqueta: "Información obligatoria", clase: "bg-amber-100 text-amber-900" },
   { valor: "pendiente_documentacion", etiqueta: "Pendiente de documentación", clase: "bg-sky-100 text-sky-900" },
   { valor: "lista_checkin", etiqueta: "Lista para check-in", clase: "bg-emerald-100 text-emerald-900" },
   { valor: "checkin_completado", etiqueta: "Check-in completado", clase: "bg-ink/10 text-ink/70" },
@@ -145,6 +146,97 @@ function euros(n: number) {
 
 // Burbuja de acción pendiente: falta el importe con comisión del portal.
 // Con `cambiar`, en vez de la burbuja muestra un enlace "Cambiar" para corregir un importe ya puesto.
+// Piso pendiente: la entrada está en "SIN ASIGNAR". Se elige uno de los pisos del mismo cliente; se avisa si ya hay
+// otra entrada en ese piso en las mismas fechas.
+function PisoPendiente({ reserva, onGuardado }: { reserva: Reserva; onGuardado: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [abierto, setAbierto] = useState(false);
+  const [pisos, setPisos] = useState<{ id: string; piso: string }[]>([]);
+  const [elegido, setElegido] = useState("");
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!abierto) return;
+    const cliente = reserva.apartamentos?.cliente_id;
+    let q = supabase.from("apartamentos").select("id, piso").neq("piso", "SIN ASIGNAR").order("piso");
+    if (cliente) q = q.eq("cliente_id", cliente);
+    q.then(({ data }) => setPisos((data as { id: string; piso: string }[]) ?? []));
+  }, [abierto, reserva.apartamentos?.cliente_id, supabase]);
+
+  useEffect(() => {
+    setOcupado(null);
+    if (!elegido) return;
+    supabase
+      .from("reservas")
+      .select("nombre, apellido1, fecha_entrada, fecha_salida")
+      .eq("apartamento_id", elegido)
+      .neq("estado", "cancelada")
+      .neq("id", reserva.id)
+      .lt("fecha_entrada", reserva.fecha_salida)
+      .gt("fecha_salida", reserva.fecha_entrada)
+      .limit(1)
+      .then(({ data }) => {
+        const o = data?.[0];
+        setOcupado(o ? `${o.nombre} ${o.apellido1 ?? ""} (${formatoFecha(o.fecha_entrada)} → ${formatoFecha(o.fecha_salida)})` : null);
+      });
+  }, [elegido, reserva.id, reserva.fecha_entrada, reserva.fecha_salida, supabase]);
+
+  async function guardar() {
+    if (!elegido) return;
+    if (ocupado && !window.confirm(`Ese piso ya tiene una entrada en esas fechas: ${ocupado}. ¿Asignarlo igualmente?`)) return;
+    setGuardando(true);
+    setError("");
+    const { error: err } = await supabase.from("reservas").update({ apartamento_id: elegido }).eq("id", reserva.id);
+    setGuardando(false);
+    if (err) return setError(err.message);
+    window.dispatchEvent(new Event("pendientes-cambiados"));
+    setAbierto(false);
+    onGuardado();
+  }
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200"
+        title="La entrada está en SIN ASIGNAR: elige el piso"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        Falta piso
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <select aria-label="Piso" className="!w-36" value={elegido} onChange={(e) => setElegido(e.target.value)} autoFocus>
+        <option value="">Elige piso…</option>
+        {pisos.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.piso}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={!elegido || guardando}
+        onClick={guardar}
+        className="rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-40"
+      >
+        {guardando ? "Guardando…" : "Guardar"}
+      </button>
+      <button type="button" onClick={() => setAbierto(false)} className="text-xs text-ink/50 hover:text-ink">
+        Cancelar
+      </button>
+      {ocupado && <span className="text-xs text-clay">Ocupado: {ocupado}</span>}
+      {error && <span className="text-xs text-clay">{error}</span>}
+    </div>
+  );
+}
+
 // Importe pendiente de una reserva de portal. Según cómo llega el precio de Avirato:
 //  * Booking: llega CON comisión (importe) → se pide la comisión y el neto se calcula (importe − comisión).
 //  * Airbnb y demás: llega SIN comisión (neto) → se pide el importe con comisión y la comisión se calcula.
@@ -576,11 +668,15 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
   const pasos = [
     {
       clave: "importe",
-      etiqueta: !r.importe_pendiente && r.importe != null ? euros(r.importe) : "Importe",
-      hecho: !r.importe_pendiente,
-      titulo: r.importe_pendiente
-        ? r.importe != null && r.importe_neto == null ? "Falta la comisión" : "Falta el importe con comisión"
-        : "Importe con comisión",
+      etiqueta: r.importe_pendiente || r.piso_pendiente ? "Info. obligatoria" : r.importe != null ? euros(r.importe) : "Info. obligatoria",
+      hecho: !r.importe_pendiente && !r.piso_pendiente,
+      titulo:
+        [
+          r.piso_pendiente && "Falta el piso",
+          r.importe_pendiente && (r.importe != null && r.importe_neto == null ? "Falta la comisión" : "Falta el importe con comisión"),
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Información obligatoria: piso e importe",
     },
     {
       clave: "huespedes",
@@ -691,14 +787,28 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
       hecho: reserva.checkin_at,
       campo: "checkin_at",
       accion: "Completar check-in",
-      disabled: !yaLlego || reserva.importe_pendiente,
-      ayuda: reserva.importe_pendiente ? "Falta el importe" : !yaLlego ? "Disponible desde el día de entrada" : undefined,
+      disabled: !yaLlego || reserva.importe_pendiente || reserva.piso_pendiente,
+      ayuda: reserva.piso_pendiente
+        ? "Falta el piso"
+        : reserva.importe_pendiente
+          ? "Falta el importe"
+          : !yaLlego
+            ? "Disponible desde el día de entrada"
+            : undefined,
     },
   ];
 
   return (
     <div>
       <ul className="space-y-2">
+        <li className="text-xs font-medium uppercase tracking-wide text-ink/50">Información obligatoria</li>
+        <li className="flex flex-wrap items-center justify-between gap-3">
+          <span>
+            {reserva.piso_pendiente ? "○" : "✓"} Piso
+            {!reserva.piso_pendiente && <span className="ml-2 text-xs text-ink/50">{reserva.apartamentos?.piso ?? "—"}</span>}
+          </span>
+          {!cancelada && reserva.piso_pendiente && <PisoPendiente reserva={reserva} onGuardado={onCambio} />}
+        </li>
         <li className="flex flex-wrap items-center justify-between gap-3">
           <span>
             {reserva.importe_pendiente ? "○" : "✓"} Importe con comisión
@@ -916,7 +1026,7 @@ export default function EntradasView({
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion, origen_codigo, forma_pago_codigo,
-         estado, canal, importe_neto, importe_pendiente, fase,
+         estado, canal, importe_neto, importe_pendiente, piso_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
          num_huespedes, formulario_token, titular_huesped_id, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
          apartamentos!inner(piso, cliente_id),
@@ -1295,7 +1405,12 @@ export default function EntradasView({
                         onAbrir={() => setPasosAbiertos(pasosAbiertos === r.id ? null : r.id)}
                       />
                     )}
-                    {r.fase === "pendiente_importe" && <ImportePendiente reserva={r} onGuardado={cargar} />}
+                    {r.fase === "pendiente_importe" && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {r.piso_pendiente && <PisoPendiente reserva={r} onGuardado={cargar} />}
+                        {r.importe_pendiente && <ImportePendiente reserva={r} onGuardado={cargar} />}
+                      </div>
+                    )}
                   </div>
 
                   <div className="ml-auto flex items-center gap-3 text-sm">
