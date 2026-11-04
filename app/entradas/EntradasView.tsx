@@ -707,7 +707,7 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
       type="button"
       onClick={onAbrir}
       aria-expanded={abierto}
-      className={`group flex flex-wrap items-center gap-1 rounded-md p-0.5 text-left ${abierto ? "bg-paper" : "hover:bg-paper"}`}
+      className={`group flex flex-wrap items-center gap-1 sm:flex-nowrap rounded-md p-0.5 text-left ${abierto ? "bg-paper" : "hover:bg-paper"}`}
       title="Ver y gestionar los pasos"
     >
       {pasos.map((p, i) => {
@@ -1350,7 +1350,7 @@ export default function EntradasView({
             const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
             // Desde una acción pendiente los pasos van desplegados (salvo el importe, que tiene su burbuja).
-            const conPasos = accion && accion !== "importe" ? pasosAbiertos !== r.id : pasosAbiertos === r.id;
+            const conPasos = accion ? pasosAbiertos !== r.id : pasosAbiertos === r.id;
             const cliente = r.apartamentos?.cliente_id ? clientesPorId.get(r.apartamentos.cliente_id) : undefined;
             return (
               <div
@@ -1359,30 +1359,32 @@ export default function EntradasView({
                   (cliente?.color ?? SIN_CLIENTE).franja
                 } ${r.fase === "cancelada" ? "opacity-60" : ""}`}
               >
-                <div className="flex flex-wrap items-center gap-4 px-4 py-3">
+                {/* Todas las entradas con la misma altura: en pantalla ancha (≥1300 px) una línea con columnas fijas;
+                    en portátil/tableta siempre dos líneas (datos y botones / pasos); en móvil se reparte. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid sm:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto] sm:gap-x-4 min-[1300px]:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto_auto]">
                   <span
                     title={cliente?.nombre ?? "Sin cliente"}
-                    className={`inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide ring-1 ring-inset ${
+                    className={`inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide ring-1 ring-inset sm:row-span-2 min-[1300px]:row-span-1 ${
                       (cliente?.color ?? SIN_CLIENTE).etiqueta
                     }`}
                   >
                     {cliente?.codigo ?? cliente?.nombre?.slice(0, 2).toUpperCase() ?? "—"}
                   </span>
-                  <div className="min-w-[180px]">
-                    <div className="text-sm font-medium">
+                  <div className="min-w-[10.5rem] sm:min-w-0">
+                    <div className="whitespace-nowrap text-sm font-medium">
                       {formatoFecha(r.fecha_entrada)} → {formatoFecha(r.fecha_salida)}
                     </div>
-                    <div className="text-xs text-ink/50">
+                    <div className={`truncate text-xs ${r.piso_pendiente ? "text-amber-700" : "text-ink/50"}`}>
                       {apartamento?.piso}
                     </div>
                   </div>
-                  <div className="min-w-[160px]">
-                    <div className="text-sm">
+                  <div className="min-w-0 flex-1 sm:flex-none">
+                    <div className="truncate text-sm" title={`${r.nombre} ${r.apellido1 ?? ""}`}>
                       {r.nombre} {r.apellido1 ?? ""}
                     </div>
-                    <div className="text-xs text-ink/50">{origen ?? "Sin origen"}</div>
+                    <div className="truncate text-xs text-ink/50">{origen ?? "Sin origen"}</div>
                   </div>
-                  <div className="flex min-w-0 flex-col items-start gap-1.5 text-sm">
+                  <div className="w-full min-w-0 text-sm sm:w-auto sm:col-span-3 sm:col-start-2 sm:row-start-2 min-[1300px]:col-span-1 min-[1300px]:col-start-4 min-[1300px]:row-start-1">
                     {r.fase === "cancelada" ? (
                       <EtiquetaFase fase={r.fase} />
                     ) : (
@@ -1392,15 +1394,9 @@ export default function EntradasView({
                         onAbrir={() => setPasosAbiertos(pasosAbiertos === r.id ? null : r.id)}
                       />
                     )}
-                    {r.fase === "pendiente_importe" && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {r.piso_pendiente && <PisoPendiente reserva={r} onGuardado={cargar} />}
-                        {r.importe_pendiente && <ImportePendiente reserva={r} onGuardado={cargar} />}
-                      </div>
-                    )}
                   </div>
 
-                  <div className="ml-auto flex items-center gap-3 text-sm">
+                  <div className="flex w-full items-center justify-end gap-3 whitespace-nowrap text-sm sm:ml-auto sm:w-auto sm:col-start-4 sm:row-start-1 min-[1300px]:col-start-5">
                     <button
                       type="button"
                       onClick={() => setExpandidaId(abierta ? null : r.id)}
