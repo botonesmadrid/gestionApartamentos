@@ -84,6 +84,9 @@ type Reserva = {
   contrato_generado_at: string | null;
   contrato_pdf_id: string | null;
   contrato_titular_huesped_id: string | null;
+  ses_xml_id: string | null;
+  ses_generado_at: string | null;
+  ses_comunicado_at: string | null;
   contrato_carpeta_id: string | null;
   contrato_firmado_pdf_id: string | null;
   canal: string | null;
@@ -103,6 +106,7 @@ type Rango = "ultimos31" | "mas7" | "semana" | "mes" | "anio" | "personalizado";
 type Fase =
   | "pendiente_importe"
   | "pendiente_documentacion"
+  | "pendiente_ses"
   | "lista_checkin"
   | "checkin_completado"
   | "cancelada";
@@ -110,6 +114,7 @@ type Fase =
 const FASES: { valor: Fase; etiqueta: string; clase: string }[] = [
   { valor: "pendiente_importe", etiqueta: "Información obligatoria", clase: "bg-amber-100 text-amber-900" },
   { valor: "pendiente_documentacion", etiqueta: "Pendiente de documentación", clase: "bg-sky-100 text-sky-900" },
+  { valor: "pendiente_ses", etiqueta: "Pendiente SES Hospedajes", clase: "bg-violet-100 text-violet-900" },
   { valor: "lista_checkin", etiqueta: "Lista para check-in", clase: "bg-emerald-100 text-emerald-900" },
   { valor: "checkin_completado", etiqueta: "Check-in completado", clase: "bg-ink/10 text-ink/70" },
   { valor: "cancelada", etiqueta: "Cancelada", clase: "bg-clay/10 text-clay" },
@@ -119,7 +124,7 @@ const FASE = Object.fromEntries(FASES.map((f) => [f.valor, f])) as Record<Fase, 
 // Filtro de estado: las fases + "activas" (todo menos canceladas) + "todas".
 type FiltroEstado = Fase | "activas" | "todas";
 // Fases que son tareas por hacer: se muestran sin limitar por fechas.
-const FASES_TAREA: FiltroEstado[] = ["pendiente_importe", "pendiente_documentacion", "lista_checkin"];
+const FASES_TAREA: FiltroEstado[] = ["pendiente_importe", "pendiente_documentacion", "pendiente_ses", "lista_checkin"];
 
 // Fechas en hora local (no UTC: en España toISOString() puede dar el día anterior).
 function iso(d: Date) {
@@ -557,6 +562,95 @@ function EnlaceGeneral() {
   );
 }
 
+// Paso "SES Hospedajes": genera el XML del parte de viajeros en la carpeta de Drive de la entrada (función
+// ses-hospedajes). Se sube a mano a la plataforma SES y después se marca como comunicado.
+function SesHospedajes({ reserva, onCambio }: { reserva: Reserva; onCambio: () => void }) {
+  const supabase = useMemo(() => createClient(), []);
+  const [generando, setGenerando] = useState(false);
+  const [errores, setErrores] = useState<{ quien: string; errores: string[] }[]>([]);
+  const [mensaje, setMensaje] = useState("");
+
+  async function generar() {
+    if (reserva.ses_xml_id && !window.confirm("¿Volver a generar el XML? El anterior irá a la papelera de Drive.")) return;
+    setGenerando(true);
+    setErrores([]);
+    setMensaje("");
+    const { data, error } = await supabase.functions.invoke("ses-hospedajes", { body: { reserva_id: reserva.id } });
+    setGenerando(false);
+    let r = data as any;
+    if (error) {
+      try {
+        r = await (error as any).context?.json();
+      } catch {}
+    }
+    if (r?.ok) {
+      setMensaje("XML generado en la carpeta de la entrada.");
+      onCambio();
+      return;
+    }
+    if (r?.error === "validacion") setErrores(r.errores ?? []);
+    else setMensaje(r?.error === "google" ? `Error de Google Drive: ${r?.detalle ?? ""}` : "No se ha podido generar el XML.");
+  }
+
+  const generado = reserva.ses_generado_at
+    ? new Date(reserva.ses_generado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
+    : null;
+  return (
+    <div className="w-full rounded-md border border-line bg-paper p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={generando}
+          onClick={generar}
+          className={reserva.ses_xml_id ? "text-xs text-ink/50 underline hover:text-ink" : "rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper disabled:opacity-40"}
+        >
+          {generando ? "Generando…" : reserva.ses_xml_id ? "Regenerar XML" : "Generar XML SES"}
+        </button>
+        {reserva.ses_xml_id && (
+          <a
+            href={`https://drive.google.com/file/d/${reserva.ses_xml_id}/view`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper"
+          >
+            XML SES
+          </a>
+        )}
+        {reserva.contrato_carpeta_id && (
+          <a
+            href={`https://drive.google.com/drive/folders/${reserva.contrato_carpeta_id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
+          >
+            Abrir carpeta
+          </a>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs text-ink/50">
+        {reserva.ses_comunicado_at
+          ? "Comunicado a SES Hospedajes."
+          : generado
+            ? `Generado el ${generado}. Súbelo a SES Hospedajes y márcalo como comunicado.`
+            : "Aún no generado"}
+      </p>
+      {errores.length > 0 && (
+        <div className="mt-1.5 rounded-md bg-clay/10 px-2.5 py-1.5 text-xs text-clay">
+          <p className="font-medium">Faltan datos para el XML:</p>
+          <ul className="mt-0.5 list-disc pl-4">
+            {errores.map((e) => (
+              <li key={e.quien}>
+                <span className="font-medium">{e.quien}:</span> {e.errores.join("; ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {mensaje && <p className={`mt-1 text-xs ${mensaje.startsWith("XML") ? "text-emerald-700" : "text-clay"}`}>{mensaje}</p>}
+    </div>
+  );
+}
+
 // Envío del enlace del formulario al titular: WhatsApp, email o copiar.
 function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado: () => void }) {
   const supabase = useMemo(() => createClient(), []);
@@ -733,6 +827,16 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
           : "Contrato sin firmar",
       aviso: contratoDeOtroTitular(r),
     },
+    {
+      clave: "ses",
+      etiqueta: "SES",
+      hecho: !!r.ses_comunicado_at || !!r.checkin_at,
+      titulo: r.ses_comunicado_at
+        ? "Comunicado a SES Hospedajes"
+        : r.ses_xml_id
+          ? "XML generado: falta subirlo a SES Hospedajes y marcarlo"
+          : "Falta generar el XML de SES Hospedajes",
+    },
     { clave: "checkin", etiqueta: "Check-in", hecho: !!r.checkin_at, titulo: r.checkin_at ? "Check-in completado" : "Check-in pendiente" },
   ];
   const siguiente = pasos.findIndex((p) => !p.hecho);
@@ -828,13 +932,25 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
       automatico: "Se marca al llegar el correo de firma de HelloSign",
     },
     {
+      // Se genera el XML en la carpeta de Drive, se sube a mano a SES Hospedajes y se marca aquí.
+      etiqueta: "SES Hospedajes (comunicado)",
+      hecho: reserva.ses_comunicado_at,
+      campo: "ses_comunicado_at",
+      accion: "Marcar comunicado",
+      disabled: !reserva.ses_xml_id,
+      ayuda: !reserva.ses_xml_id ? "Genera primero el XML" : undefined,
+    },
+    {
       etiqueta: "Check-in",
       hecho: reserva.checkin_at,
       campo: "checkin_at",
       accion: "Completar check-in",
-      disabled: !yaLlego || reserva.importe_pendiente || reserva.piso_pendiente || contratoDeOtroTitular(reserva),
+      disabled:
+        !yaLlego || reserva.importe_pendiente || reserva.piso_pendiente || contratoDeOtroTitular(reserva) || !reserva.ses_comunicado_at,
       ayuda: reserva.piso_pendiente
         ? "Falta el piso"
+        : !reserva.ses_comunicado_at
+          ? "Falta comunicar a SES Hospedajes"
         : contratoDeOtroTitular(reserva)
           ? "El contrato no está a nombre del titular: regenéralo"
         : reserva.importe_pendiente
@@ -921,6 +1037,7 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
                 </button>
               ))}
             {p.campo === "contrato_firmado_at" && !cancelada && <ContratoPdf reserva={reserva} onCambio={onCambio} />}
+            {p.campo === "ses_comunicado_at" && !cancelada && !reserva.checkin_at && <SesHospedajes reserva={reserva} onCambio={onCambio} />}
           </li>
         ))}
       </ul>
@@ -1069,7 +1186,7 @@ export default function EntradasView({
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion, origen_codigo, forma_pago_codigo,
          estado, canal, importe_neto, importe_pendiente, piso_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
-         num_huespedes, formulario_token, titular_huesped_id, contrato_titular_huesped_id, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
+         num_huespedes, formulario_token, titular_huesped_id, contrato_titular_huesped_id, ses_xml_id, ses_generado_at, ses_comunicado_at, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
          apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),
@@ -1398,12 +1515,12 @@ export default function EntradasView({
                   (cliente?.color ?? SIN_CLIENTE).franja
                 } ${r.fase === "cancelada" ? "opacity-60" : ""}`}
               >
-                {/* Todas las entradas con la misma altura: en pantalla ancha (≥1300 px) una línea con columnas fijas;
+                {/* Todas las entradas con la misma altura: en pantalla ancha (≥1360 px) una línea con columnas fijas;
                     en portátil/tableta siempre dos líneas (datos y botones / pasos); en móvil se reparte. */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid sm:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto] sm:gap-x-4 min-[1300px]:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto_auto]">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid sm:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto] sm:gap-x-4 min-[1360px]:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto_auto]">
                   <span
                     title={cliente?.nombre ?? "Sin cliente"}
-                    className={`inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide ring-1 ring-inset sm:row-span-2 min-[1300px]:row-span-1 ${
+                    className={`inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide ring-1 ring-inset sm:row-span-2 min-[1360px]:row-span-1 ${
                       (cliente?.color ?? SIN_CLIENTE).etiqueta
                     }`}
                   >
@@ -1423,7 +1540,7 @@ export default function EntradasView({
                     </div>
                     <div className="truncate text-xs text-ink/50">{origen ?? "Sin origen"}</div>
                   </div>
-                  <div className="w-full min-w-0 text-sm sm:w-auto sm:col-span-3 sm:col-start-2 sm:row-start-2 min-[1300px]:col-span-1 min-[1300px]:col-start-4 min-[1300px]:row-start-1">
+                  <div className="w-full min-w-0 text-sm sm:w-auto sm:col-span-3 sm:col-start-2 sm:row-start-2 min-[1360px]:col-span-1 min-[1360px]:col-start-4 min-[1360px]:row-start-1">
                     {r.fase === "cancelada" ? (
                       <EtiquetaFase fase={r.fase} />
                     ) : (
@@ -1435,7 +1552,7 @@ export default function EntradasView({
                     )}
                   </div>
 
-                  <div className="flex w-full items-center justify-end gap-3 whitespace-nowrap text-sm sm:ml-auto sm:w-auto sm:col-start-4 sm:row-start-1 min-[1300px]:col-start-5">
+                  <div className="flex w-full items-center justify-end gap-3 whitespace-nowrap text-sm sm:ml-auto sm:w-auto sm:col-start-4 sm:row-start-1 min-[1360px]:col-start-5">
                     <button
                       type="button"
                       onClick={() => setExpandidaId(abierta ? null : r.id)}

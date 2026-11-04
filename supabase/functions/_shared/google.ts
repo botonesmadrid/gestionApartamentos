@@ -76,12 +76,15 @@ export class Google {
     return new Uint8Array(await r.arrayBuffer());
   }
   async subirPdf(nombre: string, padre: string, pdf: Uint8Array): Promise<{ id: string; webViewLink: string }> {
+    return await this.subir(nombre, padre, pdf, "application/pdf");
+  }
+  async subir(nombre: string, padre: string, contenido: Uint8Array, tipo: string): Promise<{ id: string; webViewLink: string }> {
     const frontera = `b_${crypto.randomUUID()}`;
-    const meta = JSON.stringify({ name: nombre, parents: [padre], mimeType: "application/pdf" });
+    const meta = JSON.stringify({ name: nombre, parents: [padre], mimeType: tipo });
     const enc = new TextEncoder();
     const partes = [
-      enc.encode(`--${frontera}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${frontera}\r\nContent-Type: application/pdf\r\n\r\n`),
-      pdf,
+      enc.encode(`--${frontera}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${frontera}\r\nContent-Type: ${tipo}\r\n\r\n`),
+      contenido,
       enc.encode(`\r\n--${frontera}--`),
     ];
     const cuerpo = new Uint8Array(partes.reduce((n, p) => n + p.length, 0));
