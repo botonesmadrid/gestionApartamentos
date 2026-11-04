@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import EntradasView from "./entradas/EntradasView";
+import CalendarioEntradas from "./entradas/CalendarioEntradas";
 
-export default async function Home() {
+// Entradas: pestañas Lista (por defecto) y Calendario (?vista=calendario).
+export default async function Home({ searchParams }: { searchParams: { vista?: string } }) {
+  const calendario = searchParams.vista === "calendario";
   const supabase = createClient();
   const {
     data: { user },
@@ -11,7 +15,7 @@ export default async function Home() {
 
   const { data: apartamentos } = await supabase
     .from("apartamentos")
-    .select("id, piso")
+    .select("id, piso, cliente_id")
     .order("piso");
 
   const { data: clientes } = await supabase
@@ -32,12 +36,31 @@ export default async function Home() {
         Listado de todas las reservas, con sus huéspedes agrupados.
       </p>
 
-      <div className="mt-8">
-        <EntradasView
-          apartamentos={apartamentos ?? []}
-          clientes={clientes ?? []}
-          origenes={origenes ?? []}
-        />
+      <nav className="mt-6 flex gap-1 border-b border-line text-sm" aria-label="Vistas de entradas">
+        {[
+          { href: "/", texto: "Lista", activa: !calendario },
+          { href: "/?vista=calendario", texto: "Calendario", activa: calendario },
+        ].map((t) => (
+          <Link
+            key={t.texto}
+            href={t.href}
+            className={`-mb-px border-b-2 px-4 py-2 ${t.activa ? "border-ink font-medium text-ink" : "border-transparent text-ink/50 hover:text-ink"}`}
+          >
+            {t.texto}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="mt-6">
+        {calendario ? (
+          <CalendarioEntradas apartamentos={apartamentos ?? []} clientes={clientes ?? []} />
+        ) : (
+          <EntradasView
+            apartamentos={apartamentos ?? []}
+            clientes={clientes ?? []}
+            origenes={origenes ?? []}
+          />
+        )}
       </div>
     </main>
   );
