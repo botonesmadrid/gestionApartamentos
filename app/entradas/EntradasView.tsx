@@ -96,7 +96,7 @@ type Reserva = {
   huespedes: Huesped[] | null;
 };
 
-type Rango = "recientes" | "proximas" | "ultimos31" | "mesActual" | "personalizado";
+type Rango = "ultimos31" | "semana" | "mes" | "anio" | "personalizado";
 
 // Fases del flujo de una reserva (columna calculada reservas.fase).
 type Fase =
@@ -120,24 +120,31 @@ type FiltroEstado = Fase | "activas" | "todas";
 // Fases que son tareas por hacer: se muestran sin limitar por fechas.
 const FASES_TAREA: FiltroEstado[] = ["pendiente_importe", "pendiente_documentacion", "lista_checkin"];
 
+// Fechas en hora local (no UTC: en España toISOString() puede dar el día anterior).
+function iso(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function hoyISO() {
-  return new Date().toISOString().slice(0, 10);
+  return iso(new Date());
 }
 
 function sumarDias(fechaISO: string, dias: number) {
-  const d = new Date(fechaISO + "T00:00:00");
+  const d = new Date(fechaISO + "T12:00:00");
   d.setDate(d.getDate() + dias);
-  return d.toISOString().slice(0, 10);
+  return iso(d);
 }
 
-function primerDiaMes() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function ultimoDiaMes() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+// Rangos de fecha de entrada predefinidos. "Últimos 31 días" no tiene fin: incluye todas las entradas futuras.
+function rangoDe(r: Exclude<Rango, "personalizado">): { desde: string; hasta: string } {
+  const h = new Date();
+  if (r === "ultimos31") return { desde: sumarDias(hoyISO(), -31), hasta: "" };
+  if (r === "semana") {
+    const lunes = sumarDias(hoyISO(), -((h.getDay() + 6) % 7));
+    return { desde: lunes, hasta: sumarDias(lunes, 6) };
+  }
+  if (r === "mes") return { desde: iso(new Date(h.getFullYear(), h.getMonth(), 1)), hasta: iso(new Date(h.getFullYear(), h.getMonth() + 1, 0)) };
+  return { desde: `${h.getFullYear()}-01-01`, hasta: `${h.getFullYear()}-12-31` };
 }
 
 function euros(n: number) {
@@ -926,9 +933,9 @@ export default function EntradasView({
   const supabase = useMemo(() => createClient(), []);
 
   // Por defecto: lo de los últimos 30 días y lo que llega en los próximos 60.
-  const [rango, setRango] = useState<Rango>("recientes");
-  const [desde, setDesde] = useState(sumarDias(hoyISO(), -30));
-  const [hasta, setHasta] = useState(sumarDias(hoyISO(), 60));
+  const [rango, setRango] = useState<Rango>("ultimos31");
+  const [desde, setDesde] = useState(() => rangoDe("ultimos31").desde);
+  const [hasta, setHasta] = useState(() => rangoDe("ultimos31").hasta);
 
   const [apartamentoId, setApartamentoId] = useState("");
   const [clienteId, setClienteId] = useState("");
@@ -1002,19 +1009,13 @@ export default function EntradasView({
 
   function elegirRango(r: Rango) {
     setRango(r);
-    if (r === "recientes") {
-      setDesde(sumarDias(hoyISO(), -30));
-      setHasta(sumarDias(hoyISO(), 60));
-    } else if (r === "proximas") {
-      setDesde(hoyISO());
-      setHasta(sumarDias(hoyISO(), 90));
-    } else if (r === "ultimos31") {
-      setDesde(sumarDias(hoyISO(), -30));
-      setHasta(hoyISO());
-    } else if (r === "mesActual") {
-      setDesde(primerDiaMes());
-      setHasta(ultimoDiaMes());
+    if (r === "personalizado") {
+      if (!hasta) setHasta(sumarDias(desde, 60)); // al pasar desde "últimos 31 días", que no tiene fin
+      return;
     }
+    const { desde: d, hasta: h } = rangoDe(r);
+    setDesde(d);
+    setHasta(h);
   }
 
   async function cargar() {
@@ -1044,7 +1045,10 @@ export default function EntradasView({
       query = filtrarAccion(query, accion);
       query = query.order("fecha_entrada", { ascending: true }); // lo más urgente primero
     } else {
-      if (!sinFechas) query = query.gte("fecha_entrada", desde).lte("fecha_entrada", hasta);
+      if (!sinFechas) {
+        if (desde) query = query.gte("fecha_entrada", desde);
+        if (hasta) query = query.lte("fecha_entrada", hasta);
+      }
       if (estadoFiltro === "activas") query = query.neq("fase", "cancelada");
       else if (estadoFiltro !== "todas") query = query.eq("fase", estadoFiltro);
     }
@@ -1174,45 +1178,26 @@ export default function EntradasView({
           Fecha de entrada
         </p>
         <div className="flex flex-wrap gap-2 text-sm">
+          {(
+            [
+              ["ultimos31", "Últimos 31 días y próximas"],
+              ["semana", "Esta semana"],
+              ["mes", "Este mes"],
+              ["anio", "Este año"],
+            ] as const
+          ).map(([valor, texto]) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => elegirRango(valor)}
+              className={`rounded-md px-3 py-1.5 ${rango === valor ? "bg-ink text-paper" : "border border-line text-ink/70"}`}
+            >
+              {texto}
+            </button>
+          ))}
           <button
             type="button"
-            onClick={() => elegirRango("recientes")}
-            className={`rounded-md px-3 py-1.5 ${
-              rango === "recientes" ? "bg-ink text-paper" : "border border-line text-ink/70"
-            }`}
-          >
-            Recientes y próximas
-          </button>
-          <button
-            type="button"
-            onClick={() => elegirRango("proximas")}
-            className={`rounded-md px-3 py-1.5 ${
-              rango === "proximas" ? "bg-ink text-paper" : "border border-line text-ink/70"
-            }`}
-          >
-            Próximas (90 días)
-          </button>
-          <button
-            type="button"
-            onClick={() => elegirRango("ultimos31")}
-            className={`rounded-md px-3 py-1.5 ${
-              rango === "ultimos31" ? "bg-ink text-paper" : "border border-line text-ink/70"
-            }`}
-          >
-            Últimos 31 días
-          </button>
-          <button
-            type="button"
-            onClick={() => elegirRango("mesActual")}
-            className={`rounded-md px-3 py-1.5 ${
-              rango === "mesActual" ? "bg-ink text-paper" : "border border-line text-ink/70"
-            }`}
-          >
-            Mes en curso
-          </button>
-          <button
-            type="button"
-            onClick={() => setRango("personalizado")}
+            onClick={() => elegirRango("personalizado")}
             className={`rounded-md px-3 py-1.5 ${
               rango === "personalizado" ? "bg-ink text-paper" : "border border-line text-ink/70"
             }`}
