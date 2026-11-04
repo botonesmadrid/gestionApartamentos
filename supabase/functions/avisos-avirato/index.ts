@@ -11,6 +11,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { aTextoPlano, leerAvisoAvirato } from "../_shared/avirato.ts";
 import { leerFirmaHelloSign } from "../_shared/hellosign.ts";
+import { leerAvisoLittleHotelier, quitarDatosPago } from "../_shared/littlehotelier.ts";
 import { Google, limpiarNombre, normalizar, titularDe } from "../_shared/google.ts";
 
 // Correos de firma completada de Dropbox Sign (HelloSign): el correo es lo único que marca un contrato como firmado;
@@ -20,6 +21,8 @@ const CONSULTA_FIRMAS = 'from:noreply@mail.hellosign.com (subject:firmó OR subj
 const FIRMAS_POR_PASADA = 10; // para no agotar el tiempo de la función; el resto, en la siguiente pasada
 
 const CONSULTA = 'from:noreply@avirato.com subject:"Id reserva" newer_than:30d';
+// Little Hotelier (Casa Malasaña): reservas, modificaciones y cancelaciones de Booking.com. Desde el 4/11/2026.
+const CONSULTA_LH = 'from:no-reply@app.littlehotelier.com subject:"Booking.com" after:2026/11/04';
 
 async function tokenGmail(): Promise<string> {
   const r = await fetch("https://oauth2.googleapis.com/token", {
@@ -75,9 +78,11 @@ Deno.serve(async (req) => {
 
   try {
     const avisos = await procesar(db);
+    // Little Hotelier: un fallo aquí tampoco debe impedir lo demás.
+    const littleHotelier = await procesarLittleHotelier(db).catch((e) => ({ error: String(e).slice(0, 300) }));
     // Un fallo en las firmas (p. ej. Drive) no debe impedir aplicar los avisos de reservas.
     const firmas = await procesarFirmas(db).catch((e) => ({ error: String(e).slice(0, 300) }));
-    return Response.json({ ...avisos, firmas });
+    return Response.json({ ...avisos, littleHotelier, firmas });
   } catch (e) {
     console.error("avisos-avirato:", e);
     return Response.json({ error: String(e) }, { status: 500 });
@@ -123,6 +128,43 @@ async function procesar(db: any) {
     resultados.push({ id, codigo: aviso.codigo, resultado: error ? `error: ${error.message}` : data?.resultado });
   }
 
+  return { procesados: resultados.length, resultados };
+}
+
+// ---------------------------------------------------------------------------
+// Little Hotelier: mismos avisos que Avirato (registrar_aviso_canal). El piso se busca por el Room Id
+// (apartamentos.room_id_canal) y la comisión viene desglosada, así que la entrada no queda pendiente de importe.
+// El correo trae la tarjeta virtual (número y CVC): se quita antes de guardar el cuerpo.
+// deno-lint-ignore no-explicit-any
+async function procesarLittleHotelier(db: any) {
+  const token = await tokenGmail();
+  const lista = await gmail(token, `messages?includeSpamTrash=true&maxResults=100&q=${encodeURIComponent(CONSULTA_LH)}`);
+  const ids: string[] = (lista.messages ?? []).map((m: any) => m.id);
+  if (!ids.length) return { procesados: 0 };
+  const { data: yaVistos } = await db.from("avisos_canal").select("mensaje_id").in("mensaje_id", ids);
+  const vistos = new Set((yaVistos ?? []).map((v: any) => v.mensaje_id));
+  const nuevos = ids.filter((id) => !vistos.has(id)).reverse();
+  const resultados = [];
+  for (const id of nuevos) {
+    const m = await gmail(token, `messages/${id}?format=full`);
+    const cab = Object.fromEntries((m.payload?.headers ?? []).map((h: any) => [h.name.toLowerCase(), h.value]));
+    const asunto = cab["subject"] ?? "";
+    const texto = quitarDatosPago(aTextoPlano(cuerpoDe(m.payload)));
+    const aviso = leerAvisoLittleHotelier(asunto, texto);
+    const { data, error } = await db.rpc("registrar_aviso_canal", {
+      p: {
+        canal: "littlehotelier",
+        mensaje_id: id,
+        recibido_at: new Date(Number(m.internalDate)).toISOString(),
+        asunto,
+        cuerpo: texto,
+        ...aviso,
+        // más de una habitación en un aviso: que lo revise una persona
+        tipo: aviso.habitaciones <= 1 ? aviso.tipo : "revisar",
+      },
+    });
+    resultados.push({ id, codigo: aviso.codigo, resultado: error ? `error: ${error.message}` : data?.resultado });
+  }
   return { procesados: resultados.length, resultados };
 }
 
