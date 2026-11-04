@@ -96,7 +96,7 @@ type Reserva = {
   huespedes: Huesped[] | null;
 };
 
-type Rango = "ultimos31" | "semana" | "mes" | "anio" | "personalizado";
+type Rango = "ultimos31" | "mas7" | "semana" | "mes" | "anio" | "personalizado";
 
 // Fases del flujo de una reserva (columna calculada reservas.fase).
 type Fase =
@@ -139,6 +139,7 @@ function sumarDias(fechaISO: string, dias: number) {
 function rangoDe(r: Exclude<Rango, "personalizado">): { desde: string; hasta: string } {
   const h = new Date();
   if (r === "ultimos31") return { desde: sumarDias(hoyISO(), -31), hasta: "" };
+  if (r === "mas7") return { desde: sumarDias(hoyISO(), -7), hasta: sumarDias(hoyISO(), 7) };
   if (r === "semana") {
     const lunes = sumarDias(hoyISO(), -((h.getDay() + 6) % 7));
     return { desde: lunes, hasta: sumarDias(lunes, 6) };
@@ -1181,6 +1182,7 @@ export default function EntradasView({
           {(
             [
               ["ultimos31", "Últimos 31 días y próximas"],
+              ["mas7", "± 7 días"],
               ["semana", "Esta semana"],
               ["mes", "Este mes"],
               ["anio", "Este año"],
