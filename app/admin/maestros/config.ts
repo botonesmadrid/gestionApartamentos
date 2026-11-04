@@ -115,6 +115,21 @@ export const MAESTROS: MaestroConfig[] = [
     ],
   },
   {
+    slug: "motivos-viaje",
+    titulo: "Motivos del viaje",
+    tabla: "motivos_viaje",
+    pk: "codigo",
+    pkGenerada: false,
+    ordenarPor: "orden",
+    campos: [
+      { key: "codigo", etiqueta: "Código", tipo: "text", requerido: true },
+      // El formulario muestra la parte del idioma del huésped: «Español. / English».
+      { key: "texto", etiqueta: "Texto (español / inglés)", tipo: "text", requerido: true },
+      { key: "orden", etiqueta: "Orden", tipo: "numero" },
+      { key: "activo", etiqueta: "Activo (sale en el formulario)", tipo: "sino" },
+    ],
+  },
+  {
     slug: "origenes-reserva",
     titulo: "Orígenes de reserva",
     tabla: "origenes_reserva",

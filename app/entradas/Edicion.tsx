@@ -327,6 +327,8 @@ export function EditarHuesped({
   const tipos = useCatalogo("tipos_documento", "codigo", "descripcion");
   const sexos = useCatalogo("sexos", "codigo", "descripcion");
   const parentescos = useCatalogo("parentescos", "codigo", "descripcion");
+  // Motivos del maestro (se guarda el texto); si el huésped tiene uno que ya no está en el maestro, se conserva.
+  const motivosMaestro = useCatalogo("motivos_viaje", "texto", "texto");
 
   const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
   const [f, setF] = useState({
@@ -454,7 +456,15 @@ export function EditarHuesped({
         <Texto tipo="email" valor={f.correo} onChange={set("correo")} />
       </Fila>
       <Fila etiqueta="Motivo del viaje">
-        <Texto valor={f.motivo_viaje} onChange={set("motivo_viaje")} />
+        <Desplegable
+          valor={f.motivo_viaje}
+          opciones={
+            f.motivo_viaje && !motivosMaestro.some((m) => m.valor === f.motivo_viaje)
+              ? [...motivosMaestro, { valor: f.motivo_viaje, etiqueta: f.motivo_viaje }]
+              : motivosMaestro
+          }
+          onChange={set("motivo_viaje")}
+        />
       </Fila>
       <div className="pt-2">
         <button type="button" onClick={borrar} disabled={guardando} className="text-xs text-clay underline">

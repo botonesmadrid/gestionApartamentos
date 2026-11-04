@@ -17,6 +17,7 @@ export type Catalogos = {
   tipos_documento: Opcion[];
   sexos: Opcion[];
   parentescos: Opcion[];
+  motivos?: { codigo: string; texto: string }[]; // maestro de motivos del viaje ("Español. / English")
 };
 type Datos = {
   estado: "ok" | "no_encontrado" | "cerrado";
@@ -31,6 +32,7 @@ type Datos = {
   tipos_documento: Opcion[];
   sexos: Opcion[];
   parentescos: Opcion[];
+  motivos?: { codigo: string; texto: string }[];
 };
 
 export type Huesped = {
@@ -63,7 +65,8 @@ export const VACIO: Huesped = {
   nombre_municipio: "", parentesco_codigo: "", telefono: "", correo: "", motivo_viaje: "", consentimiento: false,
 };
 
-// Motivos del viaje (los mismos que el formulario anterior: se guardan tal cual).
+// Motivos del viaje: vienen del maestro (Administración → Maestros → Motivos del viaje); esta lista solo se usa si
+// no llegan. Se guardan tal cual ("Español. / English").
 const MOTIVOS = [
   "Visita de carácter cultural. / Cultural visit",
   "Trabajo. / Work",
@@ -698,7 +701,7 @@ export function CamposPaso({
         <Campo id="motivo" etiqueta={t.motivo} error={errores.motivo_viaje}>
           <select id="motivo" value={h.motivo_viaje} onChange={(e) => cambiar("motivo_viaje", e.target.value)}>
             <option value="">{t.elige}</option>
-            {MOTIVOS.map((m) => (
+            {(catalogos.motivos?.length ? catalogos.motivos.map((x) => x.texto) : MOTIVOS).map((m) => (
               <option key={m} value={m}>
                 {idioma === "es" ? m.split(" / ")[0].replace(/\.$/, "") : (m.split(" / ")[1] ?? m)}
               </option>
