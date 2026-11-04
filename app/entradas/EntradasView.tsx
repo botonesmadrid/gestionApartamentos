@@ -83,6 +83,7 @@ type Reserva = {
   titular_huesped_id: string | null;
   contrato_generado_at: string | null;
   contrato_pdf_id: string | null;
+  contrato_titular_huesped_id: string | null;
   contrato_carpeta_id: string | null;
   contrato_firmado_pdf_id: string | null;
   canal: string | null;
@@ -384,12 +385,20 @@ function titularDe(r: Reserva): Huesped | undefined {
   return porNombre ?? hs[0];
 }
 
+// El contrato pendiente de firma se generó para otra persona (o no consta para quién): hay que regenerarlo.
+function contratoDeOtroTitular(r: Reserva) {
+  if (!r.contrato_pdf_id || r.contrato_firmado_at) return false;
+  const titular = titularDe(r);
+  return !titular || r.contrato_titular_huesped_id !== titular.id;
+}
+
 // Paso "Contrato": generar el PDF en Drive (función generar-contrato), enlaces y regenerar.
 function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => void }) {
   const supabase = useMemo(() => createClient(), []);
   const [generando, setGenerando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const titular = titularDe(reserva);
+  const deOtro = contratoDeOtroTitular(reserva);
 
   async function generar(regenerar: boolean) {
     if (regenerar && !window.confirm("¿Volver a generar el contrato? El PDF anterior irá a la papelera de Drive.")) return;
@@ -433,6 +442,12 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
         {titular && <span className="text-ink/40"> · se cambia en la lista de huéspedes</span>}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        {deOtro && (
+          <p className="w-full rounded-md bg-clay/10 px-2.5 py-1.5 text-xs text-clay">
+            El contrato para firma no está a nombre del titular actual
+            {titular ? ` (${[titular.nombre, titular.apellido1].filter(Boolean).join(" ")})` : ""}. Regenéralo antes de enviarlo a firmar.
+          </p>
+        )}
         {/* Solo el contrato generado para la firma y la carpeta (donde también queda el firmado). */}
         {!reserva.contrato_pdf_id && !reserva.contrato_firmado_at && (
           <button
@@ -445,7 +460,12 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
           </button>
         )}
         {pdfUrl && (
-          <a href={pdfUrl} target="_blank" rel="noreferrer" className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper">
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium ${deOtro ? "border border-clay/40 bg-white text-clay line-through" : "bg-ink text-paper"}`}
+          >
             Contrato para firma
           </a>
         )}
@@ -465,8 +485,13 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
           </a>
         )}
         {reserva.contrato_pdf_id && !reserva.contrato_firmado_at && (
-          <button type="button" disabled={generando} onClick={() => generar(true)} className="text-xs text-ink/50 underline hover:text-ink">
-            {generando ? "Generando…" : "Regenerar"}
+          <button
+            type="button"
+            disabled={generando}
+            onClick={() => generar(true)}
+            className={deOtro ? "rounded-md bg-clay px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50" : "text-xs text-ink/50 underline hover:text-ink"}
+          >
+            {generando ? "Generando…" : deOtro ? "Regenerar para el titular" : "Regenerar"}
           </button>
         )}
       </div>
@@ -697,7 +722,17 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
           : "Formulario sin enviar",
       enviado: !r.formulario_completado_at && !!r.formulario_enviado_at,
     },
-    { clave: "contrato", etiqueta: "Contrato", hecho: !!r.contrato_firmado_at, titulo: r.contrato_firmado_at ? "Contrato firmado" : "Contrato sin firmar" },
+    {
+      clave: "contrato",
+      etiqueta: contratoDeOtroTitular(r) ? "Contrato ≠ titular" : "Contrato",
+      hecho: !!r.contrato_firmado_at,
+      titulo: r.contrato_firmado_at
+        ? "Contrato firmado"
+        : contratoDeOtroTitular(r)
+          ? "El contrato para firma está a nombre de otra persona: regenéralo"
+          : "Contrato sin firmar",
+      aviso: contratoDeOtroTitular(r),
+    },
     { clave: "checkin", etiqueta: "Check-in", hecho: !!r.checkin_at, titulo: r.checkin_at ? "Check-in completado" : "Check-in pendiente" },
   ];
   const siguiente = pasos.findIndex((p) => !p.hecho);
@@ -713,6 +748,8 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
       {pasos.map((p, i) => {
         const clase = p.hecho
           ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+          : "aviso" in p && p.aviso
+            ? "bg-clay/10 text-clay border-clay/40"
           : i === siguiente
             ? "bg-amber-50 text-amber-900 border-amber-300"
             : "bg-white text-ink/40 border-line";
@@ -795,9 +832,11 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
       hecho: reserva.checkin_at,
       campo: "checkin_at",
       accion: "Completar check-in",
-      disabled: !yaLlego || reserva.importe_pendiente || reserva.piso_pendiente,
+      disabled: !yaLlego || reserva.importe_pendiente || reserva.piso_pendiente || contratoDeOtroTitular(reserva),
       ayuda: reserva.piso_pendiente
         ? "Falta el piso"
+        : contratoDeOtroTitular(reserva)
+          ? "El contrato no está a nombre del titular: regenéralo"
         : reserva.importe_pendiente
           ? "Falta el importe"
           : !yaLlego
@@ -1030,7 +1069,7 @@ export default function EntradasView({
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion, origen_codigo, forma_pago_codigo,
          estado, canal, importe_neto, importe_pendiente, piso_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
-         num_huespedes, formulario_token, titular_huesped_id, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
+         num_huespedes, formulario_token, titular_huesped_id, contrato_titular_huesped_id, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
          apartamentos!inner(piso, cliente_id),
          origenes_reserva(nombre),
          formas_pago(descripcion),

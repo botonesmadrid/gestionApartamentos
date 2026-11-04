@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
       contrato_pdf_id: pdf.id,
       contrato_carpeta_id: carpetaReserva,
       titular_huesped_id: t.id,
+      contrato_titular_huesped_id: t.id, // para quién se generó: si cambia el titular, la app pide regenerarlo
     }).eq("id", r.id);
 
     return json({
