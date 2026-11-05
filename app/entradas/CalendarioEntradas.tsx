@@ -108,16 +108,22 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
     cargar();
   }, [cargar]);
 
-  // Clientes (con su color) y sus pisos; "SIN ASIGNAR" al final de su cliente.
+  // Clientes (con su color) y sus pisos; "SIN ASIGNAR" al final de su cliente. Arriba CM y debajo Barco; el resto
+  // después, por fecha de alta. El color se mantiene por fecha de alta (el mismo que en el listado).
   const grupos = useMemo(() => {
-    const orden = [...clientes].sort((a, b) => a.created_at.localeCompare(b.created_at));
-    return orden.map((c, i) => ({
-      cliente: c,
-      color: COLORES[i % COLORES.length],
-      pisos: apartamentos
-        .filter((a) => a.cliente_id === c.id)
-        .sort((a, b) => (a.piso === "SIN ASIGNAR" ? 1 : b.piso === "SIN ASIGNAR" ? -1 : a.piso.localeCompare(b.piso, "es"))),
-    })).filter((g) => g.pisos.length);
+    const porAlta = [...clientes].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const prioridad = (c: Cliente) =>
+      c.codigo?.toUpperCase() === "CM" ? 0 : /barco/i.test(`${c.codigo ?? ""} ${c.nombre}`) ? 1 : 2;
+    return porAlta
+      .map((c, i) => ({
+        cliente: c,
+        color: COLORES[i % COLORES.length],
+        pisos: apartamentos
+          .filter((a) => a.cliente_id === c.id)
+          .sort((a, b) => (a.piso === "SIN ASIGNAR" ? 1 : b.piso === "SIN ASIGNAR" ? -1 : a.piso.localeCompare(b.piso, "es"))),
+      }))
+      .sort((a, b) => prioridad(a.cliente) - prioridad(b.cliente))
+      .filter((g) => g.pisos.length);
   }, [clientes, apartamentos]);
   const porPiso = useMemo(() => {
     const m = new Map<string, Entrada[]>();
