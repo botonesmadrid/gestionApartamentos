@@ -1,4 +1,4 @@
--- PENDIENTE DE APLICAR en producción (revisar antes: borra datos personales caducados de forma diaria).
+-- PENDIENTE DE APLICAR en producción (borra a diario los datos personales caducados; hoy no hay ninguno: los primeros caducan el 23/11/2026).
 -- Protección de datos (RGPD art. 5.1.e, limitación del plazo de conservación): supresión automática de los datos
 -- personales una vez vencidos los plazos legales.
 --   * Registro de viajeros (huespedes y envíos del formulario): 3 años desde el fin de la estancia (art. 5 del
@@ -16,7 +16,8 @@
 comment on column public.huespedes.consentimiento_at is
   'Fecha en que el huésped confirmó haber leído la información de protección de datos (art. 13 RGPD). No es un consentimiento: la base del tratamiento es la obligación legal (RD 933/2021) y el contrato.';
 
-create or replace function public.purgar_datos_caducados()
+-- p_hoy: fecha de referencia (por defecto hoy); solo sirve para probarla simulando otra fecha.
+create or replace function public.purgar_datos_caducados(p_hoy date default current_date)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   r record;
@@ -31,7 +32,7 @@ begin
   for r in
     select res.id, res.formulario_completado_at
     from public.reservas res
-    where res.fecha_salida < current_date - interval '3 years'
+    where res.fecha_salida < p_hoy - interval '3 years'
       and exists (select 1 from public.huespedes h where h.reserva_id = res.id)
   loop
     update public.reservas set titular_huesped_id = null, contrato_titular_huesped_id = null where id = r.id;
@@ -43,27 +44,27 @@ begin
 
   -- 2. Envíos del formulario de enlace único (pendientes, vinculados o descartados) de hace más de 3 años.
   delete from public.registros_huespedes
-  where coalesce(fecha_salida, fecha_entrada) < current_date - interval '3 years';
+  where coalesce(fecha_salida, fecha_entrada) < p_hoy - interval '3 years';
   get diagnostics v_registros = row_count;
 
   -- 3. Cabecera de las entradas con salida hace más de 6 años: se anonimiza.
   update public.reservas
   set nombre = 'Anonimizado', apellido1 = null, apellido2 = null, telefono = null
-  where fecha_salida < current_date - interval '6 years'
+  where fecha_salida < p_hoy - interval '6 years'
     and (nombre <> 'Anonimizado' or apellido1 is not null or apellido2 is not null or telefono is not null);
   get diagnostics v_reservas = row_count;
 
   -- 4. Contenido de los correos de los channel managers de hace más de 6 meses.
   update public.avisos_canal
   set asunto = null, cuerpo = null, datos = null
-  where coalesce(recibido_at, created_at) < now() - interval '6 months'
+  where coalesce(recibido_at, created_at) < p_hoy - interval '6 months'
     and (asunto is not null or cuerpo is not null or datos is not null);
   get diagnostics v_avisos = row_count;
 
   return jsonb_build_object('huespedes', v_huespedes, 'registros_huespedes', v_registros,
     'reservas_anonimizadas', v_reservas, 'avisos_canal', v_avisos);
 end $$;
-revoke execute on function public.purgar_datos_caducados() from public, anon, authenticated;
+revoke execute on function public.purgar_datos_caducados(date) from public, anon, authenticated;
 
 -- Todos los días a las 03:40 (UTC).
 select cron.unschedule('purgar-datos-caducados') where exists (select 1 from cron.job where jobname = 'purgar-datos-caducados');
