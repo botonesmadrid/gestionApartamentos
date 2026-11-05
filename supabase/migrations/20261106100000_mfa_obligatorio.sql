@@ -1,4 +1,4 @@
--- PENDIENTE DE APLICAR en producción, DESPUÉS de desplegar la app con la pantalla /cuenta/verificacion.
+-- Aplicada en producción el 2026-11-05 (desde el editor SQL de Supabase), después de desplegar /cuenta/verificacion.
 -- Verificación en dos pasos (MFA) obligatoria también en la base de datos: una sesión que solo ha puesto la contraseña
 -- (nivel aal1) no ve ni modifica ningún dato, aunque llame directamente a la API de Supabase.
 --   * Política RESTRICTIVA en todas las tablas de public para el rol authenticated: se suma (AND) a las existentes.
