@@ -50,7 +50,7 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 2. **Probar «+ Añadir huésped a mano»** en una entrada.
 3. **Ampliar los permisos del OAuth de Google** para que el borrado automático también cubra Gmail y Calendar (ver
    «Borrado automático de documentos» más abajo). Sin esto solo se borra lo de Google Drive.
-4. **Aplicar** `supabase/migrations/20261106120000_purgar_documentos_cron.sql` (programa el borrado diario).
+4. ~~Aplicar la migración del borrado diario de documentos~~ (hecho el 05/11/2026).
 
 ### Protección de datos (trámites fuera de la app)
 5. **Contratos de encargado del tratamiento (art. 28)**: aceptar y guardar los DPA de Supabase, Vercel, Google
@@ -83,7 +83,7 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 ## Borrado automático de documentos (06/11/2026)
 
 La base de datos se limpia sola (`purgar_datos_caducados`, 03:40 UTC). Fuera de ella, la Edge Function
-`purgar-documentos` (04:10 UTC, migración `20261106120000_purgar_documentos_cron.sql`) manda a la papelera lo que
+`purgar-documentos` (04:10 UTC, migración `20261106120000_purgar_documentos_cron.sql`, aplicada) manda a la papelera lo que
 supera los 3 años desde el fin de la estancia (la papelera se vacía sola a los 30 días):
 
 | Dónde | Qué | Estado |
