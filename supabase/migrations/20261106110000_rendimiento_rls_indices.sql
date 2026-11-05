@@ -1,4 +1,4 @@
--- PENDIENTE DE APLICAR en producción.
+-- Aplicada en producción el 2026-11-05 (desde el editor SQL de Supabase).
 -- Rendimiento de RLS e índices (avisos del linter de Supabase: auth_rls_initplan, multiple_permissive_policies,
 -- unindexed_foreign_keys). No cambia quién puede ver qué:
 --   * auth.uid(), auth.jwt() y es_gestor() van dentro de (select …): Postgres los calcula una vez por consulta y no
