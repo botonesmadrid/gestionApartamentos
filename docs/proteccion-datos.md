@@ -110,3 +110,16 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
     entrar se le pide registrar el móvil de nuevo.
 - **Región de Vercel: Dublín (`dub1`)** en `vercel.json`, junto a Supabase (eu-west-1): las funciones de la app ya no
   procesan los datos en EE. UU.
+
+## Rendimiento y limpieza (06/11/2026)
+
+- Páginas (Entradas, Ingresos, administración): la sesión y los datos se piden en paralelo en vez de uno tras otro.
+- Menú: los contadores de acciones pendientes (6 consultas) ya no se recalculan en cada cambio de página, solo al
+  cargar, tras una acción que los cambia o si tienen más de un minuto.
+- Base de datos (`20261106110000_rendimiento_rls_indices.sql`): `auth.uid()`, `auth.jwt()` y `es_gestor()` se
+  calculan una vez por consulta en las políticas RLS, políticas solo para `authenticated`, tres políticas heredadas
+  eliminadas e índices en 11 claves foráneas.
+- Código sin uso eliminado (`components/ModuloPendiente.tsx`, `cerrarSesion`, `pisosDe`, `eur2`); el script
+  `lint` (eliminado en Next 16) pasa a ser `typecheck`.
+- Pendiente de decidir: las páginas antiguas de `/apartamentos/...` solo se usan para añadir un huésped a mano desde
+  Entradas; se podrían integrar en Entradas y borrar.

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
@@ -19,12 +19,17 @@ const MODULOS = [
 ];
 
 // Nº de reservas por tipo de acción pendiente (mismos criterios que el filtro del listado).
+// Se cuenta al cargar, cuando una acción avisa de un cambio ("pendientes-cambiados") y, al navegar, solo si el último
+// recuento tiene más de un minuto (antes eran 6 consultas en cada cambio de página).
+const REFRESCO_PENDIENTES_MS = 60_000;
 function usePendientes(activo: boolean, pathname: string | null) {
   const [cuentas, setCuentas] = useState<Partial<Record<Accion, number>>>({});
+  const ultimoRecuento = useRef(0);
   useEffect(() => {
     if (!activo) return;
     const supabase = createClient();
     async function contar() {
+      ultimoRecuento.current = Date.now();
       const resultados = await Promise.all(
         ACCIONES.map(async (a) => {
           const { count } = await filtrarAccion(
@@ -36,7 +41,7 @@ function usePendientes(activo: boolean, pathname: string | null) {
       );
       setCuentas(Object.fromEntries(resultados));
     }
-    contar();
+    if (Date.now() - ultimoRecuento.current > REFRESCO_PENDIENTES_MS) contar();
     window.addEventListener("pendientes-cambiados", contar);
     return () => window.removeEventListener("pendientes-cambiados", contar);
   }, [activo, pathname]);
