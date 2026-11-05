@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // al formulario de enlace único.
 const DOMINIO_REGISTRO = "registro.botonesmadrid.com";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (request.headers.get("host")?.split(":")[0] === DOMINIO_REGISTRO) {
     const ruta = request.nextUrl.pathname;
     if (ruta === "/registro" || ruta.startsWith("/f/")) return NextResponse.next({ request });

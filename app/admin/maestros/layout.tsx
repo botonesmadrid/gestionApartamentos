@@ -4,7 +4,7 @@ import { MAESTROS } from "./config";
 import PestanasMaestros from "./PestanasMaestros";
 
 export default async function MaestrosLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -23,8 +23,8 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
    completa desplegable), en español e inglés. Archivo: `app/f/[token]/FormularioHuespedes.tsx`.
 3. **Sin plazo de conservación (art. 5.1.e).** Los datos de huéspedes no se borraban nunca; los más antiguos
    (salida 23/11/2023) superan los 3 años del RD 933/2021 este mismo mes. Nueva función `purgar_datos_caducados()`
-   con tarea diaria de pg_cron: migración `supabase/migrations/20261106090000_proteccion_datos_conservacion.sql`
-   (**pendiente de aplicar**).
+   con tarea diaria de pg_cron (03:40 UTC): migración
+   `supabase/migrations/20261106090000_proteccion_datos_conservacion.sql` (aplicada el 05/11/2026).
 4. **Datos del DNI guardados en el navegador del huésped.** El borrador del formulario se guardaba en `localStorage`
    (persistente, también en móviles compartidos o del alojamiento). Ahora se usa `sessionStorage` (se borra al cerrar
    la pestaña) y se eliminan los borradores antiguos.
@@ -45,8 +45,7 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 
 ## Acciones pendientes (manuales, fuera del código)
 
-1. **Aplicar la migración** `20261106090000_proteccion_datos_conservacion.sql` en Supabase (editor SQL o
-   `supabase db push`). Hay que hacerlo antes del 23/11/2026.
+1. ~~Aplicar la migración de conservación~~ (hecho el 05/11/2026).
 2. **Activar «Leaked password protection»** en Supabase → Authentication → Policies (aviso del linter de seguridad).
    Recomendable también activar MFA para los gestores.
 3. **Borrar los documentos caducados fuera de la base de datos** con los mismos plazos: contratos y XML de SES en
@@ -66,3 +65,35 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
    registro de viajeros mientras dure el plazo legal.
 9. **Web pública** (botonesmadrid.com, si recoge datos o usa cookies): aviso legal, política de privacidad y de
    cookies.
+
+## Auditoría de seguridad (05/11/2026)
+
+### Críticos corregidos
+
+1. **Next.js 14.2.35 con vulnerabilidades críticas** (ejecución remota de código sin autenticar en el optimizador de
+   imágenes, SSRF, denegación de servicio, XSS; 1 crítica y 2 altas según `npm audit`). La rama 14 ya no recibe
+   parches. Actualizado a **Next 16.4.5 + React 19**: `cookies()` y `params`/`searchParams` pasan a ser asíncronos y
+   `middleware.ts` se renombra a `proxy.ts`. Requiere Node 20.9 o superior en Vercel.
+2. **Alta libre de cuentas.** El login por enlace mágico creaba una cuenta para cualquier correo (sin acceso a datos,
+   pero con sesión autenticada). Ahora `shouldCreateUser: false`: solo entran usuarios dados de alta.
+3. **Sin Content-Security-Policy.** Añadida: la página solo ejecuta código propio y solo se conecta con Supabase,
+   así que una inyección de código no podría enviar datos a otro servidor. Probada en navegador sin errores.
+
+### Revisado y correcto
+
+- Funciones del servidor (`supabase/functions/*`): todas exigen sesión de gestor (`es_gestor`), salvo
+  `avisos-avirato`, que exige el secreto del cron guardado en Vault.
+- Correos y PDF se generan como texto plano o con escape de HTML; las cabeceras de correo van codificadas.
+- `auth/callback` solo redirige a rutas internas (sin redirección abierta).
+- No hay claves ni secretos en el repositorio ni en su historial.
+- Dependencia `image-size` (vía `pptxgenjs`, aviso alto de denegación de servicio): solo procesa las imágenes propias
+  del informe trimestral en el navegador. Riesgo bajo; no hay versión corregida compatible.
+
+### Pendiente (configuración en paneles, no en el código)
+
+1. Supabase → Authentication → Sign In / Providers: **desactivar «Allow new users to sign up»** (refuerza el punto 2).
+2. Supabase → Authentication: **activar «Leaked password protection»** y MFA para gestores.
+3. Supabase: mover la extensión `pg_net` fuera del esquema `public` (aviso del linter; riesgo bajo).
+4. Formulario `/registro`: el límite de 60 envíos por hora es global; alguien podría agotarlo con envíos falsos y
+   bloquear a los huéspedes reales durante una hora. Si ocurre, conviene limitar por IP (p. ej. con el firewall de
+   Vercel) o añadir un captcha.

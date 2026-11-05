@@ -4,7 +4,7 @@ import ConfigFacturacion from "./ConfigFacturacion";
 
 // Administración · Facturación: datos del emisor, plantilla del email y series de facturación por cliente.
 export default async function ConfigFacturacionPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

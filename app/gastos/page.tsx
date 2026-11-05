@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import GastosView from "./GastosView";
 
 export default async function GastosPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import FacturaDetalle from "./FacturaDetalle";
 
-export default async function FacturaPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+export default async function FacturaPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

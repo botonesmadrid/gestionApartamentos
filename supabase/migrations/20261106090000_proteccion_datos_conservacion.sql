@@ -1,4 +1,4 @@
--- PENDIENTE DE APLICAR en producción (borra a diario los datos personales caducados; hoy no hay ninguno: los primeros caducan el 23/11/2026).
+-- Aplicada en producción el 2026-11-05 (desde el editor SQL de Supabase).
 -- Protección de datos (RGPD art. 5.1.e, limitación del plazo de conservación): supresión automática de los datos
 -- personales una vez vencidos los plazos legales.
 --   * Registro de viajeros (huespedes y envíos del formulario): 3 años desde el fin de la estancia (art. 5 del

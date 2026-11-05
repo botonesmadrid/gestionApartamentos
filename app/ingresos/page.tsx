@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import IngresosView from "./IngresosView";
 
 export default async function IngresosPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

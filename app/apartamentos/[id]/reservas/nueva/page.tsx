@@ -2,14 +2,11 @@ import Link from "next/link";
 import { crearReserva } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function NuevaReservaPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function NuevaReservaPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const accion = crearReserva.bind(null, params.id);
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: origenes } = await supabase
     .from("origenes_reserva")
     .select("codigo, nombre")

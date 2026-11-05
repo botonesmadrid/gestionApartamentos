@@ -809,7 +809,7 @@ export function Marco({
   idioma: Idioma;
   setIdioma: (i: Idioma) => void;
   titulo: string;
-  refArriba: React.RefObject<HTMLDivElement>;
+  refArriba: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }) {
   return (

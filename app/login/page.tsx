@@ -21,6 +21,8 @@ export default function LoginPage() {
       email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // Solo pueden entrar usuarios ya dados de alta: el enlace mágico no crea cuentas nuevas.
+        shouldCreateUser: false,
       },
     });
     if (error) {

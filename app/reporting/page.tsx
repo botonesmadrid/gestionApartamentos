@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ReportingView from "./ReportingView";
 
 export default async function ReportingPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
