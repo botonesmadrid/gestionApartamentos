@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva } from "./Edicion";
-import { AccionesEntrada, MoverHuesped } from "./Combinar";
+import { AccionesEntrada, CopiarTitular, MoverHuesped } from "./Combinar";
 import RegistrosPendientes from "./RegistrosPendientes";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
@@ -49,6 +49,7 @@ type Huesped = {
   pais_codigo: string | null;
   codigo_municipio_ref: string | null;
   motivo_viaje: string | null;
+  es_huesped: boolean;
   nacionalidad: { nombre: string } | null;
   tipos_documento: { descripcion: string } | null;
   sexos: { descripcion: string } | null;
@@ -788,10 +789,14 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
   );
 }
 
+// Huéspedes que se alojan (el titular que solo reserva no cuenta).
+const alojados = (r: { huespedes?: { es_huesped: boolean }[] | null }) =>
+  (r.huespedes ?? []).filter((h) => h.es_huesped !== false).length;
+
 // Pasos de la reserva en la propia fila del listado: hecho (verde), el siguiente
 // por hacer (ámbar) y los que vienen después (gris). Al pulsar se abren las acciones.
 function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; abierto: boolean; onAbrir: () => void }) {
-  const registrados = r.huespedes?.length ?? 0;
+  const registrados = alojados(r);
   const pasos = [
     {
       clave: "importe",
@@ -907,7 +912,7 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
   const fechaHora = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : null;
 
-  const registrados = reserva.huespedes?.length ?? 0;
+  const registrados = alojados(reserva);
 
   async function cambiarNumHuespedes() {
     const v = window.prompt("Número de huéspedes de la reserva (adultos + niños):", String(reserva.num_huespedes ?? registrados));
@@ -1193,7 +1198,7 @@ export default function EntradasView({
          huespedes!huespedes_reserva_id_fkey(id, created_at, nombre, apellido1, apellido2, telefono, correo, fecha_nacimiento,
            soporte_documento, numero_documento, direccion, codigo_postal, nombre_municipio,
            tipo_documento_codigo, rol, sexo_codigo, parentesco_codigo, nacionalidad_codigo, pais_codigo,
-           codigo_municipio_ref, motivo_viaje, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
+           codigo_municipio_ref, motivo_viaje, es_huesped, nacionalidad:paises!huespedes_nacionalidad_codigo_fkey(nombre),
            tipos_documento(descripcion), sexos(descripcion), parentescos(descripcion))`
       )
       .order("fecha_entrada", { ascending: false });
@@ -1558,7 +1563,7 @@ export default function EntradasView({
                       onClick={() => setExpandidaId(abierta ? null : r.id)}
                       className="text-ink/60 hover:text-ink"
                     >
-                      {abierta ? "Ocultar huéspedes" : `Huéspedes (${r.huespedes?.length ?? 0})`}
+                      {abierta ? "Ocultar huéspedes" : `Huéspedes (${alojados(r)})`}
                     </button>
                     <button
                       type="button"
@@ -1593,6 +1598,9 @@ export default function EntradasView({
                           >
                             <div className="min-w-[160px] font-medium">
                               {h.nombre} {h.apellido1 ?? ""} {h.apellido2 ?? ""}
+                              {!h.es_huesped && (
+                                <span className="ml-2 rounded bg-ink/5 px-1.5 py-0.5 text-[11px] font-normal text-ink/60">solo titular</span>
+                              )}
                             </div>
                             <div className="text-ink/60">{h.nacionalidad?.nombre ?? "—"}</div>
                             <div className="text-ink/60">{h.telefono ?? "—"}</div>
@@ -1609,6 +1617,19 @@ export default function EntradasView({
                                 }}
                               />
                               Titular
+                            </label>
+                            <label className="!mb-0 flex items-center gap-1.5 !text-xs !font-normal !text-ink/70" title="Se aloja en esta entrada. Desmarcado: solo es titular (firma el contrato), no cuenta como huésped ni va al parte de SES">
+                              <input
+                                type="checkbox"
+                                className="!w-auto"
+                                checked={h.es_huesped}
+                                onChange={async (e) => {
+                                  await supabase.from("huespedes").update({ es_huesped: e.target.checked }).eq("id", h.id);
+                                  window.dispatchEvent(new Event("pendientes-cambiados"));
+                                  cargar();
+                                }}
+                              />
+                              Se aloja
                             </label>
                             <button
                               type="button"
@@ -1743,15 +1764,26 @@ export default function EntradasView({
           </dl>
           )}
           {!editando && reservaDelHuesped && (
-            <MoverHuesped
-              huesped={detalleHuesped}
-              fechaRef={reservaDelHuesped.fecha_entrada}
-              reservaId={reservaDelHuesped.id}
-              onHecho={() => {
-                cerrarDetalle();
-                cargar();
-              }}
-            />
+            <>
+              <MoverHuesped
+                huesped={detalleHuesped}
+                fechaRef={reservaDelHuesped.fecha_entrada}
+                reservaId={reservaDelHuesped.id}
+                onHecho={() => {
+                  cerrarDetalle();
+                  cargar();
+                }}
+              />
+              <CopiarTitular
+                huesped={detalleHuesped}
+                fechaRef={reservaDelHuesped.fecha_entrada}
+                reservaId={reservaDelHuesped.id}
+                onHecho={() => {
+                  cerrarDetalle();
+                  cargar();
+                }}
+              />
+            </>
           )}
         </ModalDetalle>
       )}

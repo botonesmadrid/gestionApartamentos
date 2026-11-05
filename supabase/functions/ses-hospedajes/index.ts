@@ -45,14 +45,15 @@ Deno.serve(async (req) => {
       apartamentos(piso, codigo_establecimiento, clientes(drive_carpeta_id)),
       huespedes!huespedes_reserva_id_fkey(id, created_at, nombre, apellido1, apellido2, tipo_documento_codigo, numero_documento,
         soporte_documento, fecha_nacimiento, nacionalidad_codigo, sexo_codigo, direccion, codigo_postal, pais_codigo,
-        codigo_municipio_ref, nombre_municipio, telefono, correo, parentesco_codigo, rol)`)
+        codigo_municipio_ref, nombre_municipio, telefono, correo, parentesco_codigo, rol, es_huesped)`)
     .eq("id", reserva_id ?? "")
     .single();
   if (error || !r) return json({ error: "reserva", detalle: error?.message }, 404);
   if (r.estado === "cancelada") return json({ error: "cancelada" }, 409);
 
   const apto: any = r.apartamentos;
-  const huespedes: any[] = [...(r.huespedes ?? [])];
+  // Solo las personas que se alojan (el titular que solo reserva no va en el parte).
+  const huespedes: any[] = (r.huespedes ?? []).filter((h: any) => h.es_huesped !== false);
   if (!huespedes.length) return json({ error: "validacion", errores: [{ quien: "Entrada", errores: ["No hay huéspedes registrados"] }] }, 422);
 
   // El titular va primero (como en el Sheet); después, por orden de registro.

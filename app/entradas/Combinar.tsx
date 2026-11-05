@@ -1,7 +1,8 @@
 "use client";
 
 // Acciones sobre entradas: combinar una entrada con otra (la destino conserva su información y el titular de la
-// origen pasa a ser huésped de la destino), mover huéspedes a otra entrada y eliminar entradas.
+// origen pasa a ser huésped de la destino), duplicar y eliminar entradas, mover huéspedes a otra entrada y copiar
+// al titular en otra entrada como titular que no se aloja.
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -119,6 +120,23 @@ export function AccionesEntrada({
     onHecho();
   }
 
+  async function duplicar() {
+    if (
+      !window.confirm(
+        `¿Duplicar la entrada de ${titular}?\n\nSe crea otra entrada con el mismo titular, fechas, origen y código. ` +
+          `Empieza en "Información obligatoria" (piso e importe) y sin huéspedes: el titular se copia como titular que no se aloja.`,
+      )
+    )
+      return;
+    setOcupado(true);
+    setError("");
+    const { error: err } = await supabase.rpc("duplicar_reserva", { p_reserva: reserva.id });
+    setOcupado(false);
+    if (err) return setError(err.message);
+    window.dispatchEvent(new Event("pendientes-cambiados"));
+    onHecho();
+  }
+
   async function eliminar() {
     if (!window.confirm(`¿Eliminar la entrada de ${titular}? Se borran también sus huéspedes y sus líneas de Ingresos. No se puede deshacer.`)) return;
     setOcupado(true);
@@ -154,6 +172,14 @@ export function AccionesEntrada({
             className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-paper disabled:opacity-50"
           >
             Combinar con otra entrada…
+          </button>
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={duplicar}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-paper disabled:opacity-50"
+          >
+            Duplicar entrada
           </button>
           <button
             type="button"
@@ -210,6 +236,55 @@ export function MoverHuesped({
       ) : (
         <button type="button" onClick={() => setAbierto(true)} className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-paper">
           Mover a otra entrada…
+        </button>
+      )}
+      {error && <p className="mt-2 text-sm text-clay">{error}</p>}
+    </div>
+  );
+}
+
+// El titular reserva también otra entrada (en la que no se aloja, o para otras personas): se copia allí como
+// titular que no se aloja. Firma el contrato de esa entrada, pero no cuenta como huésped ni va al parte de SES.
+export function CopiarTitular({
+  huesped,
+  fechaRef,
+  reservaId,
+  onHecho,
+}: {
+  huesped: { id: string; nombre: string; apellido1: string | null };
+  fechaRef: string;
+  reservaId: string;
+  onHecho: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [abierto, setAbierto] = useState(false);
+  const [error, setError] = useState("");
+
+  async function copiar(destino: Candidata) {
+    const nombre = `${huesped.nombre} ${huesped.apellido1 ?? ""}`.trim();
+    if (!window.confirm(`¿Poner a ${nombre} como titular (sin alojarse) de la entrada de ${destino.nombre} ${destino.apellido1 ?? ""} (${fecha(destino.fecha_entrada)})?`)) return;
+    const { error: err } = await supabase.rpc("copiar_titular", { p_huesped: huesped.id, p_destino: destino.id });
+    if (err) return setError(err.message);
+    window.dispatchEvent(new Event("pendientes-cambiados"));
+    onHecho();
+  }
+
+  return (
+    <div className="mt-3">
+      {abierto ? (
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Titular también de otra entrada</p>
+            <button type="button" onClick={() => setAbierto(false)} className="text-xs text-ink/50 hover:text-ink">
+              Cancelar
+            </button>
+          </div>
+          <p className="mb-2 text-xs text-ink/50">Se añade a la otra entrada como titular que no se aloja allí.</p>
+          <SelectorEntrada excluirId={reservaId} fechaRef={fechaRef} onElegir={copiar} />
+        </div>
+      ) : (
+        <button type="button" onClick={() => setAbierto(true)} className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-paper">
+          Titular también de otra entrada…
         </button>
       )}
       {error && <p className="mt-2 text-sm text-clay">{error}</p>}
