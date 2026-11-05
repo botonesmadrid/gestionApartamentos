@@ -74,8 +74,9 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
    imágenes, SSRF, denegación de servicio, XSS; 1 crítica y 2 altas según `npm audit`). La rama 14 ya no recibe
    parches. Actualizado a **Next 16.4.5 + React 19**: `cookies()` y `params`/`searchParams` pasan a ser asíncronos y
    `middleware.ts` se renombra a `proxy.ts`. Requiere Node 20.9 o superior en Vercel.
-2. **Alta libre de cuentas.** El login por enlace mágico creaba una cuenta para cualquier correo (sin acceso a datos,
-   pero con sesión autenticada). Ahora `shouldCreateUser: false`: solo entran usuarios dados de alta.
+2. **Alta de cuentas desde el login.** El enlace mágico pedía crear la cuenta si el correo no existía. En la práctica
+   no era explotable porque el alta de usuarios ya estaba desactivada en Supabase («Allow new users to sign up»), pero
+   ahora el código también lo impide (`shouldCreateUser: false`), como segunda barrera.
 3. **Sin Content-Security-Policy.** Añadida: la página solo ejecuta código propio y solo se conecta con Supabase,
    así que una inyección de código no podría enviar datos a otro servidor. Probada en navegador sin errores.
 
@@ -91,7 +92,7 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 
 ### Pendiente (configuración en paneles, no en el código)
 
-1. Supabase → Authentication → Sign In / Providers: **desactivar «Allow new users to sign up»** (refuerza el punto 2).
+1. ~~Desactivar «Allow new users to sign up»~~ (ya estaba desactivado).
 2. Supabase → Authentication: **activar «Leaked password protection»** y MFA para gestores.
 3. Supabase: mover la extensión `pg_net` fuera del esquema `public` (aviso del linter; riesgo bajo).
 4. Formulario `/registro`: el límite de 60 envíos por hora es global; alguien podría agotarlo con envíos falsos y
