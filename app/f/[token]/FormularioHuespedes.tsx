@@ -872,7 +872,7 @@ export function Campo({
   );
 }
 
-export function Botones({
+function Botones({
   nombre,
   valor,
   opciones,
@@ -908,7 +908,7 @@ export function Botones({
   );
 }
 
-export function SelectPais({
+function SelectPais({
   id,
   valor,
   paises,
@@ -942,7 +942,7 @@ export function SelectPais({
   );
 }
 
-export function BuscadorMunicipio({
+function BuscadorMunicipio({
   buscar,
   seleccionado,
   placeholder,

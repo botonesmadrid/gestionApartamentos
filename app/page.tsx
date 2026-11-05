@@ -9,26 +9,21 @@ export default async function Home(props: { searchParams: Promise<{ vista?: stri
   const searchParams = await props.searchParams;
   const calendario = searchParams.vista === "calendario";
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // En paralelo: la sesión y los datos (que ya protegen RLS y la verificación en dos pasos).
+  const [
+    {
+      data: { user },
+    },
+    { data: apartamentos },
+    { data: clientes },
+    { data: origenes },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("apartamentos").select("id, piso, cliente_id").order("piso"),
+    supabase.from("clientes").select("id, nombre, codigo, created_at").eq("activo", true).order("nombre"),
+    supabase.from("origenes_reserva").select("codigo, nombre").order("nombre"),
+  ]);
   if (!user) redirect("/login");
-
-  const { data: apartamentos } = await supabase
-    .from("apartamentos")
-    .select("id, piso, cliente_id")
-    .order("piso");
-
-  const { data: clientes } = await supabase
-    .from("clientes")
-    .select("id, nombre, codigo, created_at")
-    .eq("activo", true)
-    .order("nombre");
-
-  const { data: origenes } = await supabase
-    .from("origenes_reserva")
-    .select("codigo, nombre")
-    .order("nombre");
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">

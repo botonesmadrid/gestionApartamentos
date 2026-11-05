@@ -11,10 +11,11 @@ export default async function ServiciosPage(props: { searchParams: Promise<{ cli
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: perfil } = await supabase.from("perfiles").select("rol").eq("id", user.id).maybeSingle();
+  const [{ data: perfil }, { data: clientes }] = await Promise.all([
+    supabase.from("perfiles").select("rol").eq("id", user.id).maybeSingle(),
+    supabase.from("clientes").select("id, codigo, nombre").eq("activo", true).order("nombre"),
+  ]);
   if (perfil?.rol !== "gestor") redirect("/");
-
-  const { data: clientes } = await supabase.from("clientes").select("id, codigo, nombre").eq("activo", true).order("nombre");
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">

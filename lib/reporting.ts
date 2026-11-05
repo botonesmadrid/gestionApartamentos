@@ -116,13 +116,6 @@ export function sugerirFuturo(estancias: Estancia[], anio: number): Futuro {
 
 const diasMes = (anio: number, mes: number) => new Date(anio, mes, 0).getDate();
 
-// Pisos que cuentan para la ocupación: los del cliente elegido o la suma de los clientes con estancias.
-export function pisosDe(estancias: Estancia[], clienteId: string | null): number {
-  const porCliente = new Map<string, number>();
-  for (const e of estancias) if (!clienteId || e.cliente_id === clienteId) porCliente.set(e.cliente_id, Number(e.pisos_ocupacion) || 1);
-  return Array.from(porCliente.values()).reduce((s, n) => s + n, 0) || 1;
-}
-
 export function calcularAnual(estancias: Estancia[], anio: number, pisos: number): Anual {
   const meses: Mes[] = Array.from({ length: 12 }, (_, i) => ({
     mes: i + 1,
@@ -226,7 +219,6 @@ const miles = (n: number, d: number) => {
   return (n < 0 ? "-" : "") + ent.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (dec ? `,${dec}` : "");
 };
 export const eur0 = (n: number | null | undefined) => (n == null ? "—" : `${miles(Number(n), 0)} €`);
-export const eur2 = (n: number | null | undefined) => (n == null ? "—" : `${miles(Number(n), 2)} €`);
 export const pct = (n: number | null | undefined, d = 1) =>
   n == null ? "—" : `${(n * 100).toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d })} %`;
 export const signo = (n: number | null | undefined, f: (x: number) => string) => (n == null ? "—" : `${n > 0 ? "+" : ""}${f(n)}`);
