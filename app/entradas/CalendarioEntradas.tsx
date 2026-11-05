@@ -65,6 +65,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
   const [cargando, setCargando] = useState(true);
   const [ocultos, setOcultos] = useState<Set<string>>(new Set());
   const [elegida, setElegida] = useState<Entrada | null>(null);
+  const [panelAbierto, setPanelAbierto] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const fin = sumar(inicio, DIAS);
@@ -75,11 +76,14 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
       setOcultos(new Set(JSON.parse(localStorage.getItem(CLAVE_OCULTOS) ?? "[]")));
     } catch {}
   }, []);
-  const alternar = (id: string) =>
+  // Se guardan los pisos ocultos; el check de un cliente muestra u oculta todos sus pisos a la vez.
+  const fijar = (ids: string[], ocultar: boolean) =>
     setOcultos((prev) => {
       const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
+      for (const id of ids) {
+        if (ocultar) n.add(id);
+        else n.delete(id);
+      }
       try {
         localStorage.setItem(CLAVE_OCULTOS, JSON.stringify([...n]));
       } catch {}
@@ -121,6 +125,13 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
     return m;
   }, [entradas]);
 
+  const totalPisos = grupos.reduce((n, g) => n + g.pisos.length, 0);
+  const pisosVisibles = grupos.reduce((n, g) => n + g.pisos.filter((p) => !ocultos.has(p.id)).length, 0);
+  // En móvil el panel de filtros empieza plegado.
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1023px)").matches) setPanelAbierto(false);
+  }, []);
+
   const diasVista = Array.from({ length: DIAS }, (_, i) => sumar(inicio, i));
 
   async function enviar(e: Entrada) {
@@ -154,7 +165,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
   const resumen = useMemo(() => {
     const visibles = entradas.filter((e) => {
       const g = grupos.find((x) => x.pisos.some((p) => p.id === e.apartamento_id));
-      return g && !ocultos.has(g.cliente.id) && !ocultos.has(e.apartamento_id);
+      return g && !ocultos.has(e.apartamento_id);
     });
     return {
       total: visibles.length,
@@ -186,27 +197,49 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 rounded-lg border border-line bg-white p-3 text-sm">
-        {grupos.map((g) => (
-          <div key={g.cliente.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <label className="!mb-0 flex items-center gap-1.5 !text-sm !font-medium !text-ink">
-              <input type="checkbox" className="!w-auto" checked={!ocultos.has(g.cliente.id)} onChange={() => alternar(g.cliente.id)} />
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: g.color }} />
-              {g.cliente.codigo ?? g.cliente.nombre}
-            </label>
-            {!ocultos.has(g.cliente.id) &&
-              g.pisos.map((p) => (
-                <label key={p.id} className="!mb-0 flex items-center gap-1 !text-xs !font-normal !text-ink/70">
-                  <input type="checkbox" className="!w-auto" checked={!ocultos.has(p.id)} onChange={() => alternar(p.id)} />
-                  {p.piso}
-                </label>
-              ))}
+      <div className="mt-3 lg:flex lg:items-start lg:gap-4">
+        {/* Filtros: en el lateral (en móvil, desplegable) */}
+        <details className="mb-3 rounded-lg border border-line bg-white lg:sticky lg:top-4 lg:mb-0 lg:w-52 lg:shrink-0" open={panelAbierto} onToggle={(e) => setPanelAbierto((e.target as HTMLDetailsElement).open)}>
+          <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium lg:cursor-default">
+            Pisos visibles <span className="font-normal text-ink/50">({pisosVisibles}/{totalPisos})</span>
+          </summary>
+          <div className="space-y-3 border-t border-line px-3 py-3">
+            {grupos.map((g) => {
+              const visibles = g.pisos.filter((p) => !ocultos.has(p.id)).length;
+              const todos = visibles === g.pisos.length;
+              return (
+                <div key={g.cliente.id}>
+                  <label className="!mb-0 flex items-center gap-2 !text-sm !font-medium !text-ink">
+                    <input
+                      type="checkbox"
+                      className="!w-auto"
+                      checked={visibles > 0}
+                      ref={(el) => {
+                        if (el) el.indeterminate = visibles > 0 && !todos;
+                      }}
+                      onChange={() => fijar(g.pisos.map((p) => p.id), todos)}
+                    />
+                    <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: g.color }} />
+                    <span className="truncate">{g.cliente.nombre}</span>
+                  </label>
+                  {g.pisos.length > 1 && (
+                    <div className="ml-6 mt-1 space-y-0.5">
+                      {g.pisos.map((p) => (
+                        <label key={p.id} className="!mb-0 flex items-center gap-2 !text-xs !font-normal !text-ink/70">
+                          <input type="checkbox" className="!w-auto" checked={!ocultos.has(p.id)} onChange={() => fijar([p.id], !ocultos.has(p.id))} />
+                          {p.piso}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
+        </details>
 
       {/* Calendario */}
-      <div className="mt-3 overflow-x-auto rounded-lg border border-line bg-white">
+      <div className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-line bg-white">
         <div style={{ width: 150 + DIAS * ANCHO_DIA }}>
           <div className="sticky top-0 z-10 flex border-b border-line bg-white">
             <div className="sticky left-0 z-20 w-[150px] shrink-0 border-r border-line bg-white px-2 py-1.5 text-xs text-ink/50">
@@ -230,7 +263,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
           </div>
 
           {grupos
-            .filter((g) => !ocultos.has(g.cliente.id))
+            .filter((g) => g.pisos.some((p) => !ocultos.has(p.id)))
             .map((g) => (
               <div key={g.cliente.id}>
                 <div className="sticky left-0 flex border-b border-line bg-paper/70">
@@ -282,6 +315,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
               </div>
             ))}
         </div>
+      </div>
       </div>
 
       {mensaje && !elegida && (
