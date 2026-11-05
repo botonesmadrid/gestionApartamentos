@@ -311,17 +311,44 @@ export type HuespedEditable = {
   motivo_viaje: string | null;
 };
 
+// Huésped vacío para dar de alta uno a mano desde Entradas (EditarHuesped con reservaId).
+export const HUESPED_NUEVO: HuespedEditable = {
+  id: "",
+  nombre: "",
+  apellido1: null,
+  apellido2: null,
+  sexo_codigo: null,
+  fecha_nacimiento: null,
+  tipo_documento_codigo: null,
+  numero_documento: null,
+  soporte_documento: null,
+  nacionalidad_codigo: null,
+  direccion: null,
+  codigo_postal: null,
+  pais_codigo: null,
+  codigo_municipio_ref: null,
+  nombre_municipio: null,
+  parentesco_codigo: null,
+  telefono: null,
+  correo: null,
+  motivo_viaje: null,
+};
+
+// Edita un huésped o, con reservaId, da de alta uno nuevo en esa entrada.
 export function EditarHuesped({
   huesped,
+  reservaId,
   onGuardado,
   onCancelar,
   onBorrado,
 }: {
   huesped: HuespedEditable;
+  reservaId?: string;
   onGuardado: () => void;
   onCancelar: () => void;
-  onBorrado: () => void;
+  onBorrado?: () => void;
 }) {
+  const alta = !!reservaId;
   const supabase = useMemo(() => createClient(), []);
   const paises = useCatalogo("paises", "codigo", "nombre");
   const tipos = useCatalogo("tipos_documento", "codigo", "descripcion");
@@ -381,7 +408,9 @@ export function EditarHuesped({
       motivo_viaje: nulo(f.motivo_viaje),
     };
     setGuardando(true);
-    const { error: err } = await supabase.from("huespedes").update(cambios).eq("id", huesped.id);
+    const { error: err } = alta
+      ? await supabase.from("huespedes").insert({ ...cambios, reserva_id: reservaId, rol: "VI", origen_datos: "gestor" })
+      : await supabase.from("huespedes").update(cambios).eq("id", huesped.id);
     setGuardando(false);
     if (err) return setError(err.message);
     onGuardado();
@@ -393,7 +422,7 @@ export function EditarHuesped({
     const { error: err } = await supabase.from("huespedes").delete().eq("id", huesped.id);
     setGuardando(false);
     if (err) return setError(err.message);
-    onBorrado();
+    onBorrado?.();
   }
 
   return (
@@ -466,11 +495,13 @@ export function EditarHuesped({
           onChange={set("motivo_viaje")}
         />
       </Fila>
-      <div className="pt-2">
-        <button type="button" onClick={borrar} disabled={guardando} className="text-xs text-clay underline">
-          Borrar huésped
-        </button>
-      </div>
+      {!alta && (
+        <div className="pt-2">
+          <button type="button" onClick={borrar} disabled={guardando} className="text-xs text-clay underline">
+            Borrar huésped
+          </button>
+        </div>
+      )}
       <Botonera guardando={guardando} error={error} onCancelar={onCancelar} />
     </form>
   );

@@ -121,5 +121,5 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
   eliminadas e índices en 11 claves foráneas.
 - Código sin uso eliminado (`components/ModuloPendiente.tsx`, `cerrarSesion`, `pisosDe`, `eur2`); el script
   `lint` (eliminado en Next 16) pasa a ser `typecheck`.
-- Pendiente de decidir: las páginas antiguas de `/apartamentos/...` solo se usan para añadir un huésped a mano desde
-  Entradas; se podrían integrar en Entradas y borrar.
+- Páginas antiguas de `/apartamentos/...` eliminadas: el alta manual de huéspedes se hace ahora en Entradas («+ Añadir
+  huésped a mano» abre el mismo formulario que la edición); apartamentos en Maestros y reservas en Entradas.
