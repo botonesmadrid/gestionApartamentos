@@ -61,6 +61,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Verificación en dos pasos obligatoria: con sesión iniciada pero sin el segundo factor (nivel aal1) solo se puede
+  // estar en /cuenta/verificacion. La base de datos tampoco devuelve datos a una sesión aal1 (política "mfa obligatorio").
+  const ruta = request.nextUrl.pathname;
+  if (user && !isAuthRoute && ruta !== "/cuenta/verificacion") {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.currentLevel !== "aal2") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/cuenta/verificacion";
+      url.search = ruta === "/" ? "" : `?next=${encodeURIComponent(ruta + request.nextUrl.search)}`;
+      const redireccion = NextResponse.redirect(url);
+      // Conserva las cookies de sesión que haya refrescado Supabase en esta petición.
+      response.cookies.getAll().forEach((c) => redireccion.cookies.set(c));
+      return redireccion;
+    }
+  }
+
   return response;
 }
 

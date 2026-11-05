@@ -93,8 +93,20 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 ### Pendiente (configuración en paneles, no en el código)
 
 1. ~~Desactivar «Allow new users to sign up»~~ (ya estaba desactivado).
-2. Supabase → Authentication: **activar «Leaked password protection»** y MFA para gestores.
+2. Supabase → Authentication: **activar «Leaked password protection»**. (MFA: hecho, ver abajo.)
 3. Supabase: mover la extensión `pg_net` fuera del esquema `public` (aviso del linter; riesgo bajo).
 4. Formulario `/registro`: el límite de 60 envíos por hora es global; alguien podría agotarlo con envíos falsos y
    bloquear a los huéspedes reales durante una hora. Si ocurre, conviene limitar por IP (p. ej. con el firewall de
    Vercel) o añadir un captcha.
+
+## Verificación en dos pasos (MFA) y región (06/11/2026)
+
+- **MFA obligatorio** para todos los usuarios de la app (app de autenticación, TOTP):
+  - `/cuenta/verificacion`: la primera vez se escanea un QR; después se pide el código de 6 dígitos.
+  - `proxy.ts`: sin el segundo factor (sesión `aal1`) no se puede abrir ninguna página interna.
+  - Base de datos (`20261106100000_mfa_obligatorio.sql`): política restrictiva «mfa obligatorio» en todas las tablas y
+    `es_gestor()` exige `aal2`. Las tablas nuevas deben llevar la misma política.
+  - Móvil perdido: un administrador borra el factor del usuario en Supabase → Authentication → Users; al volver a
+    entrar se le pide registrar el móvil de nuevo.
+- **Región de Vercel: Dublín (`dub1`)** en `vercel.json`, junto a Supabase (eu-west-1): las funciones de la app ya no
+  procesan los datos en EE. UU.
