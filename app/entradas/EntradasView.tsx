@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { EditarHuesped, EditarReserva } from "./Edicion";
+import { EditarHuesped, EditarReserva, HUESPED_NUEVO } from "./Edicion";
 import { AccionesEntrada, CopiarTitular, MoverHuesped } from "./Combinar";
 import RegistrosPendientes from "./RegistrosPendientes";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
@@ -1162,6 +1162,8 @@ export default function EntradasView({
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
   const [reservaDelHuesped, setReservaDelHuesped] = useState<Reserva | null>(null);
   const [editando, setEditando] = useState(false);
+  // Entrada en la que se está dando de alta un huésped a mano.
+  const [altaHuespedEn, setAltaHuespedEn] = useState<string | null>(null);
   const [nueva, setNueva] = useState(false);
   const cerrarDetalle = () => {
     setDetalleReserva(null);
@@ -1648,12 +1650,13 @@ export default function EntradasView({
                       <p className="text-sm text-ink/40">Sin huéspedes registrados.</p>
                     )}
                     {r.fase !== "cancelada" && (
-                      <a
-                        href={`/apartamentos/${r.apartamento_id}/reservas/${r.id}/huespedes/nuevo`}
+                      <button
+                        type="button"
+                        onClick={() => setAltaHuespedEn(r.id)}
                         className="mt-2 inline-block text-xs text-ink/60 underline hover:text-ink"
                       >
                         + Añadir huésped a mano
-                      </a>
+                      </button>
                     )}
                   </div>
                 )}
@@ -1717,6 +1720,21 @@ export default function EntradasView({
               }}
             />
           )}
+        </ModalDetalle>
+      )}
+
+      {altaHuespedEn && (
+        <ModalDetalle titulo="Añadir huésped" onCerrar={() => setAltaHuespedEn(null)}>
+          <EditarHuesped
+            huesped={HUESPED_NUEVO}
+            reservaId={altaHuespedEn}
+            onCancelar={() => setAltaHuespedEn(null)}
+            onGuardado={() => {
+              setAltaHuespedEn(null);
+              cargar();
+              window.dispatchEvent(new Event("pendientes-cambiados"));
+            }}
+          />
         </ModalDetalle>
       )}
 
