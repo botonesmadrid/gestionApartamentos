@@ -48,8 +48,9 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 ### Ahora
 1. **Registrar el móvil** de cada gestor en la verificación en dos pasos (la app lo pide al entrar).
 2. **Probar «+ Añadir huésped a mano»** en una entrada.
-3. **Ampliar los permisos del OAuth de Google** para que el borrado automático también cubra Gmail y Calendar (ver
-   «Borrado automático de documentos» más abajo). Sin esto solo se borra lo de Google Drive.
+3. **Gmail: borrar a mano** (una vez al trimestre) los correos de más de 3 años con datos de huéspedes: avisos de
+   Avirato, Little Hotelier y Dropbox Sign, y los formularios enviados («Registro de huéspedes / Guest registration»).
+   En Gmail, buscar p. ej. `from:noreply@avirato.com older_than:3y` y borrar.
 4. ~~Aplicar la migración del borrado diario de documentos~~ (hecho el 05/11/2026).
 
 ### Protección de datos (trámites fuera de la app)
@@ -89,8 +90,8 @@ supera los 3 años desde el fin de la estancia (la papelera se vacía sola a los
 | Dónde | Qué | Estado |
 |---|---|---|
 | Google Drive | Carpetas de contratos y XML de SES: por los identificadores guardados en la entrada y recorriendo `CONTRATOS DE ALQUILER <año>/<MM>.- <MES>/<DD>_…` de cada cliente (por fecha de entrada, con 60 días de margen) | Funciona |
-| Google Calendar | Eventos de las entradas | Falta el permiso `calendar.events` |
-| Gmail | Avisos de Avirato, Little Hotelier y Dropbox Sign, y formularios enviados a huéspedes | Falta el permiso `gmail.modify` |
+| Google Calendar | Eventos de las entradas | Aún no se sincroniza el calendario; cuando se haga, necesitará el permiso `calendar.events` |
+| Gmail | — | No se automatiza: se borra a mano (decisión del 05/11/2026) |
 
 Simulación (no borra nada, solo cuenta), desde el editor SQL:
 
@@ -103,8 +104,9 @@ select net.http_post(
 -- y al cabo de unos segundos: select content from net._http_response order by id desc limit 1;
 ```
 
-### Ampliar los permisos de Google (Gmail y Calendar)
-Hay que generar un nuevo *refresh token* de `hola@botonesmadrid.com` con todos los permisos que usa la app:
+### Ampliar los permisos de Google (cuando se sincronice Calendar)
+Hay que generar un nuevo *refresh token* de `hola@botonesmadrid.com` con todos los permisos que usa la app (Gmail
+lectura y envío, Drive, Docs y Calendar; el borrado de correos no lo hace la app aunque el permiso lo permita):
 
 1. Google Cloud Console → el proyecto del OAuth → *APIs y servicios* → activar **Google Calendar API** (si no lo está).
    En *Credenciales* → el ID de cliente OAuth → añadir como URI de redirección autorizado
@@ -112,11 +114,11 @@ Hay que generar un nuevo *refresh token* de `hola@botonesmadrid.com` con todos l
 2. Abrir https://developers.google.com/oauthplayground → engranaje → *Use your own OAuth credentials* → pegar el
    client ID y el secret (`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`).
 3. En *Input your own scopes* pegar (separados por espacios):
-   `https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events`
+   `https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events`
 4. *Authorize APIs* con `hola@botonesmadrid.com` → *Exchange authorization code for tokens* → copiar el
    **Refresh token**.
 5. Supabase → Edge Functions → Secrets → actualizar `GMAIL_REFRESH_TOKEN` con el nuevo valor.
-6. Repetir la simulación: `permisos` debe salir todo a `true`.
+6. Repetir la simulación: `permisos.calendario` debe salir a `true`.
 
 ## Auditoría de seguridad (05/11/2026)
 

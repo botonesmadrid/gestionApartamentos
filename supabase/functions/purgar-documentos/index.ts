@@ -6,12 +6,12 @@
 //      (cubre las entradas antiguas sin identificadores). Las carpetas van por fecha de ENTRADA, así que se deja un
 //      margen de 60 días para estancias largas.
 //   3. Google Calendar: los eventos de esas entradas.
-//   4. Gmail: avisos de Avirato, Little Hotelier y Dropbox Sign, y los formularios enviados a los huéspedes.
-// Todo va a la papelera (Drive y Gmail la vacían solos a los 30 días), así que hay margen para recuperar un error.
+// Gmail NO se toca: los correos con datos de huéspedes se borran a mano (decisión del 05/11/2026).
+// Todo va a la papelera (Drive la vacía sola a los 30 días), así que hay margen para recuperar un error.
 //
 // La llama pg_cron a diario con la cabecera x-cron-secret (comprobada contra Vault, como avisos-avirato).
 // ?simulacion=1 no borra nada: solo cuenta lo que borraría (sin nombres, para no sacar datos personales).
-// Gmail necesita el permiso gmail.modify en el OAuth de Google; sin él esa parte se salta y se indica "sin_permiso".
+// Calendar necesita el permiso calendar.events en el OAuth de Google; sin él esa parte se salta ("sin_permiso").
 // Es autónoma (no usa _shared/google.ts) para poder desplegarla sola; usa el mismo OAuth de hola@botonesmadrid.com.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
@@ -49,15 +49,7 @@ class Google {
 const ANOS_CONSERVACION = 3;
 const MARGEN_DIAS_ENTRADA = 60;
 const MAX_RESERVAS = 50; // por pasada (el resto, al día siguiente)
-const MAX_CORREOS = 100; // por consulta y pasada
 const FOLDER = "application/vnd.google-apps.folder";
-
-const CONSULTAS_GMAIL = [
-  'from:noreply@avirato.com subject:"Id reserva"',
-  'from:no-reply@app.littlehotelier.com subject:"Booking.com"',
-  "from:noreply@mail.hellosign.com (subject:firmó OR subject:signed)",
-  'in:sent subject:"Registro de huéspedes / Guest registration"',
-];
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const menosDias = (fecha: string, dias: number) => {
@@ -73,9 +65,8 @@ type Resumen = {
   corte_entrada_carpetas: string;
   drive_por_entrada: { entradas: number; archivos: number };
   drive_por_estructura: { clientes: number; carpetas_anio_revisadas: number; carpetas_anio: number; carpetas_mes: number; carpetas_dia: number };
-  permisos: { drive: boolean; calendario: boolean; gmail_borrar: boolean };
+  permisos: { drive: boolean; calendario: boolean };
   calendario: { eventos: number; estado: string };
-  gmail: { correos: number; estado: string };
   errores: string[];
 };
 
@@ -96,9 +87,8 @@ Deno.serve(async (req) => {
     corte_entrada_carpetas: corteEntrada,
     drive_por_entrada: { entradas: 0, archivos: 0 },
     drive_por_estructura: { clientes: 0, carpetas_anio_revisadas: 0, carpetas_anio: 0, carpetas_mes: 0, carpetas_dia: 0 },
-    permisos: { drive: false, calendario: false, gmail_borrar: false },
+    permisos: { drive: false, calendario: false },
     calendario: { eventos: 0, estado: "ok" },
-    gmail: { correos: 0, estado: "ok" },
     errores: [],
   };
 
@@ -117,7 +107,6 @@ Deno.serve(async (req) => {
     r.permisos = {
       drive: scopes.some((x) => x.endsWith("/auth/drive") || x.endsWith("/auth/drive.file")),
       calendario: scopes.some((x) => x.endsWith("/auth/calendar") || x.endsWith("/auth/calendar.events")),
-      gmail_borrar: scopes.some((x) => x.endsWith("/auth/gmail.modify") || x === "https://mail.google.com/"),
     };
   } catch (_) { /* sin información de permisos: se intenta igual */ }
 
@@ -228,36 +217,6 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     r.errores.push(`estructura drive: ${String(e).slice(0, 200)}`);
-  }
-
-  // 4. Gmail.
-  const antes = corte.replaceAll("-", "/");
-  for (const consulta of CONSULTAS_GMAIL) {
-    if (r.gmail.estado !== "ok") break;
-    try {
-      const l = await (await g.req(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${MAX_CORREOS}&q=${encodeURIComponent(`${consulta} before:${antes}`)}`,
-      )).json();
-      for (const m of (l.messages ?? []) as { id: string }[]) {
-        if (!simulacion) {
-          const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}/trash`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.status === 403) {
-            r.gmail.estado = "sin_permiso";
-            break;
-          }
-          if (!res.ok) {
-            r.errores.push(`gmail: ${res.status}`);
-            continue;
-          }
-        }
-        r.gmail.correos++;
-      }
-    } catch (e) {
-      r.errores.push(`gmail: ${String(e).slice(0, 150)}`);
-    }
   }
 
   console.log("purgar-documentos:", JSON.stringify(r));
