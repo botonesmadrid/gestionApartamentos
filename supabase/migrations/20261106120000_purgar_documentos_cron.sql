@@ -1,4 +1,4 @@
--- PENDIENTE DE APLICAR en producción, después de desplegar la Edge Function purgar-documentos y revisar su simulación.
+-- Aplicada en producción el 2026-11-05 (desde el editor SQL de Supabase).
 -- Borrado automático de los documentos con datos de huéspedes fuera de la base de datos (Google Drive, Calendar y
 -- Gmail) cuando superan el plazo de conservación: todos los días a las 04:10 (UTC), con el mismo secreto de Vault que
 -- usa avisos-avirato. Ver supabase/functions/purgar-documentos/index.ts.
