@@ -43,28 +43,80 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 - Base de datos alojada en la UE. El service worker no guarda en caché datos de reservas ni huéspedes.
 - Al vincular un envío del formulario, la copia completa se reduce a los nombres (minimización).
 
-## Acciones pendientes (manuales, fuera del código)
+## Acciones pendientes (actualizado 06/11/2026)
 
-1. ~~Aplicar la migración de conservación~~ (hecho el 05/11/2026).
-2. **Activar «Leaked password protection»** en Supabase → Authentication → Policies (aviso del linter de seguridad).
-   Recomendable también activar MFA para los gestores.
-3. **Borrar los documentos caducados fuera de la base de datos** con los mismos plazos: contratos y XML de SES en
-   Google Drive (3 años desde la salida), solicitudes de firma en Dropbox Sign y correos con datos de huéspedes en
-   Gmail. Revisión trimestral recomendada.
-4. **Contratos de encargado del tratamiento (art. 28)**: aceptar/guardar los DPA de Supabase, Vercel, Google
-   Workspace, Dropbox Sign, Avirato y Little Hotelier. Verificar que Vercel y Supabase usan región UE.
-5. **Contrato con los propietarios**: definir el papel de Botones Madrid frente a cada propietario (normalmente
-   encargado del tratamiento del propietario, que es el titular de la vivienda turística ante el Ministerio) e
-   incluir la cláusula del art. 28 RGPD. Si es así, el aviso al huésped debe nombrar también al propietario como
-   responsable.
-6. **Registro de actividades de tratamiento (art. 30)**: la tabla de arriba sirve de base; mantenerla actualizada.
-7. **Procedimiento de brechas (arts. 33-34)**: notificar a la AEPD en 72 h si hay una brecha con riesgo; anotar
-   todas las incidencias aunque no se notifiquen.
-8. **Derechos de los interesados**: responder en 1 mes las solicitudes que lleguen a hola@botonesmadrid.com. Para
-   acceso/supresión, los datos están en `huespedes` (por documento) y en Drive; la supresión no aplica a los datos del
-   registro de viajeros mientras dure el plazo legal.
+### Ahora
+1. **Registrar el móvil** de cada gestor en la verificación en dos pasos (la app lo pide al entrar).
+2. **Probar «+ Añadir huésped a mano»** en una entrada.
+3. **Ampliar los permisos del OAuth de Google** para que el borrado automático también cubra Gmail y Calendar (ver
+   «Borrado automático de documentos» más abajo). Sin esto solo se borra lo de Google Drive.
+4. **Aplicar** `supabase/migrations/20261106120000_purgar_documentos_cron.sql` (programa el borrado diario).
+
+### Protección de datos (trámites fuera de la app)
+5. **Contratos de encargado del tratamiento (art. 28)**: aceptar y guardar los DPA de Supabase, Vercel, Google
+   Workspace, Dropbox Sign, Avirato y Little Hotelier.
+6. **Contrato con los propietarios**: normalmente Botones Madrid es encargado del tratamiento de cada propietario
+   (titular de la vivienda turística ante el Ministerio): incluir la cláusula del art. 28 RGPD y, si es así, nombrar
+   también al propietario como responsable en el aviso del formulario. Confirmarlo con un asesor.
+7. **Dropbox Sign**: las solicitudes de firma no se pueden borrar automáticamente (la app no usa su API); revisar
+   una vez al año y eliminar las de más de 3 años.
+8. **Procedimientos**: brechas (notificar a la AEPD en 72 h si hay riesgo y anotar todas las incidencias), derechos
+   de los interesados (responder en 1 mes; la supresión no aplica a los datos que la ley obliga a conservar) y
+   mantener al día el registro de tratamientos (tabla de arriba).
 9. **Web pública** (botonesmadrid.com, si recoge datos o usa cookies): aviso legal, política de privacidad y de
    cookies.
+
+### Seguridad
+- **«Leaked password protection»** de Supabase es de pago: no se aplica. Lo compensa la verificación en dos pasos
+  (una contraseña filtrada sola no da acceso). Opcional y gratis: en Supabase → Authentication → Providers → Email,
+  exigir contraseñas de al menos 12 caracteres con letras y números.
+- Funciones antiguas `recuperar-motivos` y `diagnostico-google` (desactivadas): borradas el 06/11/2026.
+
+### Opcional (riesgo bajo)
+- Formulario `/registro`: el límite de 60 envíos por hora es global; si alguien lo satura, limitar por IP en el
+  firewall de Vercel o añadir un captcha.
+- Previews de Vercel: fallan porque las variables de Supabase solo están en Production; añadirlas a Preview si se
+  quieren ver las PR antes de fusionar.
+- Supabase: mover la extensión `pg_net` fuera de `public`. Dependencia `image-size` (vía `pptxgenjs`) con aviso sin
+  versión corregida; solo procesa imágenes propias del informe trimestral.
+
+## Borrado automático de documentos (06/11/2026)
+
+La base de datos se limpia sola (`purgar_datos_caducados`, 03:40 UTC). Fuera de ella, la Edge Function
+`purgar-documentos` (04:10 UTC, migración `20261106120000_purgar_documentos_cron.sql`) manda a la papelera lo que
+supera los 3 años desde el fin de la estancia (la papelera se vacía sola a los 30 días):
+
+| Dónde | Qué | Estado |
+|---|---|---|
+| Google Drive | Carpetas de contratos y XML de SES: por los identificadores guardados en la entrada y recorriendo `CONTRATOS DE ALQUILER <año>/<MM>.- <MES>/<DD>_…` de cada cliente (por fecha de entrada, con 60 días de margen) | Funciona |
+| Google Calendar | Eventos de las entradas | Falta el permiso `calendar.events` |
+| Gmail | Avisos de Avirato, Little Hotelier y Dropbox Sign, y formularios enviados a huéspedes | Falta el permiso `gmail.modify` |
+
+Simulación (no borra nada, solo cuenta), desde el editor SQL:
+
+```sql
+select net.http_post(
+  url := 'https://nqkyftnfmuzhphnajbtk.supabase.co/functions/v1/purgar-documentos?simulacion=1',
+  headers := jsonb_build_object('Content-Type','application/json','x-cron-secret',
+    (select decrypted_secret from vault.decrypted_secrets where name='avisos_cron_secret')),
+  body := '{}'::jsonb, timeout_milliseconds := 120000);
+-- y al cabo de unos segundos: select content from net._http_response order by id desc limit 1;
+```
+
+### Ampliar los permisos de Google (Gmail y Calendar)
+Hay que generar un nuevo *refresh token* de `hola@botonesmadrid.com` con todos los permisos que usa la app:
+
+1. Google Cloud Console → el proyecto del OAuth → *APIs y servicios* → activar **Google Calendar API** (si no lo está).
+   En *Credenciales* → el ID de cliente OAuth → añadir como URI de redirección autorizado
+   `https://developers.google.com/oauthplayground`.
+2. Abrir https://developers.google.com/oauthplayground → engranaje → *Use your own OAuth credentials* → pegar el
+   client ID y el secret (`GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET`).
+3. En *Input your own scopes* pegar (separados por espacios):
+   `https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar.events`
+4. *Authorize APIs* con `hola@botonesmadrid.com` → *Exchange authorization code for tokens* → copiar el
+   **Refresh token**.
+5. Supabase → Edge Functions → Secrets → actualizar `GMAIL_REFRESH_TOKEN` con el nuevo valor.
+6. Repetir la simulación: `permisos` debe salir todo a `true`.
 
 ## Auditoría de seguridad (05/11/2026)
 
@@ -90,14 +142,9 @@ Auditoría del 05/11/2026 sobre el código de la app y la base de datos de produ
 - Dependencia `image-size` (vía `pptxgenjs`, aviso alto de denegación de servicio): solo procesa las imágenes propias
   del informe trimestral en el navegador. Riesgo bajo; no hay versión corregida compatible.
 
-### Pendiente (configuración en paneles, no en el código)
+### Pendiente
 
-1. ~~Desactivar «Allow new users to sign up»~~ (ya estaba desactivado).
-2. Supabase → Authentication: **activar «Leaked password protection»**. (MFA: hecho, ver abajo.)
-3. Supabase: mover la extensión `pg_net` fuera del esquema `public` (aviso del linter; riesgo bajo).
-4. Formulario `/registro`: el límite de 60 envíos por hora es global; alguien podría agotarlo con envíos falsos y
-   bloquear a los huéspedes reales durante una hora. Si ocurre, conviene limitar por IP (p. ej. con el firewall de
-   Vercel) o añadir un captcha.
+Ver «Acciones pendientes (actualizado 06/11/2026)» al principio.
 
 ## Verificación en dos pasos (MFA) y región (06/11/2026)
 
