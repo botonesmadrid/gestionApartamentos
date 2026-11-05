@@ -12,8 +12,8 @@ const config: Config = {
         line: "#DEDAD1",
       },
       fontFamily: {
-        display: ["'Fraunces'", "serif"],
-        body: ["'Inter'", "sans-serif"],
+        display: ["var(--font-fraunces)", "serif"],
+        body: ["var(--font-inter)", "sans-serif"],
       },
     },
   },

@@ -4,8 +4,9 @@ import ServiciosCliente from "./ServiciosCliente";
 
 // Administración · Servicios por cliente: variables y reglas con las que se calculan los Ingresos
 // (Check-in, Limpieza y Gestión). Solo gestores.
-export default async function ServiciosPage({ searchParams }: { searchParams: { cliente?: string } }) {
-  const supabase = createClient();
+export default async function ServiciosPage(props: { searchParams: Promise<{ cliente?: string }> }) {
+  const searchParams = await props.searchParams;
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -105,7 +105,9 @@ export default function FormularioRegistro() {
   useEffect(() => {
     if (!navigator.language?.toLowerCase().startsWith("es")) setIdioma("en");
     try {
-      const b = JSON.parse(localStorage.getItem(CLAVE) ?? "null") as Borrador | null;
+      // Borrador en sessionStorage (se borra al cerrar la pestaña): contiene documentos de identidad.
+      localStorage.removeItem(CLAVE); // borradores de versiones anteriores
+      const b = JSON.parse(sessionStorage.getItem(CLAVE) ?? "null") as Borrador | null;
       if (b?.huespedes?.length) {
         setEntrada(b.entrada);
         setSalida(b.salida);
@@ -119,7 +121,7 @@ export default function FormularioRegistro() {
   useEffect(() => {
     if (fase === "enviado") return;
     try {
-      localStorage.setItem(CLAVE, JSON.stringify({ entrada, salida, num, huespedes } satisfies Borrador));
+      sessionStorage.setItem(CLAVE, JSON.stringify({ entrada, salida, num, huespedes } satisfies Borrador));
     } catch {}
   }, [entrada, salida, num, huespedes, fase]);
 
@@ -198,7 +200,7 @@ export default function FormularioRegistro() {
     if (error || !r) return setErrorGeneral(tr.errorEnvio);
     if (r.ok) {
       try {
-        localStorage.removeItem(CLAVE);
+        sessionStorage.removeItem(CLAVE);
       } catch {}
       setFase("enviado");
       subir();

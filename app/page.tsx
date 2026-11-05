@@ -5,9 +5,10 @@ import EntradasView from "./entradas/EntradasView";
 import CalendarioEntradas from "./entradas/CalendarioEntradas";
 
 // Entradas: pestañas Lista (por defecto) y Calendario (?vista=calendario).
-export default async function Home({ searchParams }: { searchParams: { vista?: string } }) {
+export default async function Home(props: { searchParams: Promise<{ vista?: string }> }) {
+  const searchParams = await props.searchParams;
   const calendario = searchParams.vista === "calendario";
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

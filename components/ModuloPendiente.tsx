@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 // Página provisional para los módulos que aún no están construidos.
 export default async function ModuloPendiente({ titulo, descripcion }: { titulo: string; descripcion: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

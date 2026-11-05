@@ -3,14 +3,11 @@ import { crearHuesped } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import MunicipioSelect from "./MunicipioSelect";
 
-export default async function NuevoHuespedPage({
-  params,
-}: {
-  params: { id: string; reservaId: string };
-}) {
+export default async function NuevoHuespedPage(props: { params: Promise<{ id: string; reservaId: string }> }) {
+  const params = await props.params;
   const accion = crearHuesped.bind(null, params.id, params.reservaId);
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: tiposDocumento } = await supabase
     .from("tipos_documento")
     .select("codigo, descripcion")

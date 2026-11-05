@@ -5,13 +5,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export async function cerrarSesion() {
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
 }
 
 export async function crearApartamento(formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -54,7 +54,7 @@ export async function crearApartamento(formData: FormData) {
 }
 
 export async function crearReserva(apartamentoId: string, formData: FormData) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const num = (v: FormDataEntryValue | null) =>
     v === null || v === "" ? null : Number(v);
@@ -88,7 +88,7 @@ export async function crearHuesped(
   reservaId: string,
   formData: FormData
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const str = (v: FormDataEntryValue | null) =>
     v === null || v === "" ? null : String(v);
 

@@ -2,6 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AppShell from "./AppShell";
 import RegistrarSW from "./RegistrarSW";
+import { Fraunces, Inter } from "next/font/google";
+
+// Fuentes alojadas con la propia app (next/font las descarga al compilar): el navegador de los usuarios y huéspedes no
+// se conecta a Google Fonts, que recibiría su dirección IP (RGPD).
+const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-fraunces", display: "swap" });
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   title: "El Botones",
@@ -31,13 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
-        />
-      </head>
+    <html lang="es" className={`${fraunces.variable} ${inter.variable}`}>
       <body className="bg-paper text-ink font-body antialiased">
         <AppShell>{children}</AppShell>
         <RegistrarSW />

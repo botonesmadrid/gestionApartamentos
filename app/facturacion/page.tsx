@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import FacturacionView from "./FacturacionView";
 
 export default async function FacturacionPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

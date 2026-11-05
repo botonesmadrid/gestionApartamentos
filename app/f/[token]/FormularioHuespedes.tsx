@@ -152,7 +152,8 @@ export const T = {
     motivo: "Motivo del viaje",
     privacidad: "Protección de datos",
     privacidadLeer: "Leer la información completa",
-    acepto: "He leído y acepto la política de privacidad y consiento el tratamiento de mis datos personales para los fines indicados.",
+    privacidadCerrar: "Ocultar la información completa",
+    acepto: "He leído la información sobre protección de datos.",
     obligatorio: "Este campo es obligatorio.",
     dniMal: "El número no es un DNI válido (8 números y la letra).",
     nieMal: "El número no es un NIE válido (X/Y/Z, 7 números y la letra).",
@@ -213,7 +214,8 @@ export const T = {
     motivo: "Purpose of the trip",
     privacidad: "Data protection",
     privacidadLeer: "Read the full information",
-    acepto: "I have read and accept the Privacy Policy and give my consent to the processing of my personal data for the purposes described.",
+    privacidadCerrar: "Hide the full information",
+    acepto: "I have read the data protection information.",
     obligatorio: "This field is required.",
     dniMal: "This is not a valid DNI number (8 digits and the letter).",
     nieMal: "This is not a valid NIE number (X/Y/Z, 7 digits and the letter).",
@@ -237,9 +239,46 @@ export const T = {
   },
 };
 
+// Información sobre protección de datos (arts. 13 RGPD y 11 LOPDGDD), por capas: la básica siempre visible y la
+// completa al desplegar. La base del tratamiento NO es el consentimiento: el registro de viajeros es una obligación legal
+// (RD 933/2021) y el resto es necesario para el alojamiento contratado. Por eso la casilla del formulario solo confirma
+// que se ha leído la información (se guarda en huespedes.consentimiento_at como fecha en que se informó).
+const RESPONSABLE = "Raquel Albarracín García (NIF 53661022K), Calle Puerto de Navacerrada 16, 28220 Majadahonda (Madrid), hola@botonesmadrid.com";
+
+const PRIVACIDAD_BASICA = {
+  es: [
+    ["Responsable", "Raquel Albarracín García (Botones Madrid)."],
+    ["Finalidad", "Registro obligatorio de viajeros y comunicación al Ministerio del Interior (SES Hospedajes), gestión de la reserva, contrato y estancia."],
+    ["Legitimación", "Cumplimiento de una obligación legal (RD 933/2021 y LO 4/2015) y ejecución del contrato de alojamiento."],
+    ["Destinatarios", "Ministerio del Interior y otras autoridades cuando la ley lo exija. Proveedores que nos prestan servicios (alojamiento web, firma electrónica, correo), con contrato de encargo."],
+    ["Derechos", "Acceso, rectificación, supresión, oposición, limitación y portabilidad en hola@botonesmadrid.com, y reclamación ante la AEPD."],
+  ],
+  en: [
+    ["Controller", "Raquel Albarracín García (Botones Madrid)."],
+    ["Purpose", "Mandatory guest registration and reporting to the Spanish Ministry of the Interior (SES Hospedajes), management of the booking, contract and stay."],
+    ["Legal basis", "Compliance with a legal obligation (Royal Decree 933/2021 and Organic Law 4/2015) and performance of the accommodation contract."],
+    ["Recipients", "The Ministry of the Interior and other authorities where required by law. Service providers acting on our behalf (web hosting, e-signature, email) under data processing agreements."],
+    ["Rights", "Access, rectification, erasure, objection, restriction and portability at hola@botonesmadrid.com, and the right to lodge a complaint with the Spanish DPA (AEPD)."],
+  ],
+} as const;
+
 const PRIVACIDAD = {
-  es: `En cumplimiento del Reglamento (UE) 2016/679 (RGPD) y de la Ley Orgánica 3/2018 (LOPDGDD), le informamos de que los datos personales recogidos en este formulario serán tratados por Raquel Albarracín García (53661022K), con la finalidad de gestionar reservas, prestar servicios relacionados con el alojamiento turístico y atender sus solicitudes o consultas. Los datos se conservarán durante el tiempo necesario para cumplir con dicha finalidad y con las obligaciones legales. No se cederán a terceros salvo obligación legal o cuando sea necesario para la prestación del servicio (por ejemplo, a plataformas de gestión de reservas o a la administración pública en cumplimiento de la normativa turística). Puede ejercer sus derechos de acceso, rectificación, supresión y demás derechos escribiendo a hola@botonesmadrid.com o a Calle Puerto de Navacerrada 16, 28220 Majadahonda (Madrid).`,
-  en: `In compliance with Regulation (EU) 2016/679 (GDPR) and Spanish Organic Law 3/2018 (LOPDGDD), we inform you that the personal data collected through this form will be processed by Raquel Albarracín García (53661022K) for the purpose of managing reservations, providing services related to tourist accommodation and responding to your requests or inquiries. The data will be retained for as long as necessary to fulfil that purpose and to comply with legal obligations. It will not be transferred to third parties except where legally required or necessary for the provision of the service (e.g. to booking platforms or public authorities in compliance with tourism regulations). You may exercise your rights of access, rectification, erasure and others by writing to hola@botonesmadrid.com or to Calle Puerto de Navacerrada 16, 28220 Majadahonda (Madrid).`,
+  es: [
+    `Responsable del tratamiento: ${RESPONSABLE}.`,
+    "Qué datos tratamos: nombre y apellidos, sexo, fecha de nacimiento, nacionalidad, documento de identidad (tipo, número y soporte), dirección, teléfono, correo electrónico, parentesco con el titular, motivo del viaje y fechas de la estancia. Son los datos que exige el Real Decreto 933/2021; si no se facilitan no podemos realizar el registro ni, por tanto, alojarle. Los datos de menores los facilita su padre, madre o tutor.",
+    "Finalidades y base jurídica: (1) registrar a los viajeros y comunicar el parte al Ministerio del Interior a través de SES Hospedajes, en cumplimiento de una obligación legal (art. 6.1.c RGPD; art. 25 de la Ley Orgánica 4/2015 y Real Decreto 933/2021); (2) gestionar la reserva, el contrato de alojamiento, su firma y la estancia (art. 6.1.b RGPD, ejecución de un contrato). No se toman decisiones automatizadas ni se elaboran perfiles, y los datos no se usan para publicidad.",
+    "Conservación: los datos del registro de viajeros se conservan 3 años desde el fin de la estancia (art. 5 del RD 933/2021) y después se suprimen. Los datos de la reserva necesarios para obligaciones contables y fiscales se conservan durante los plazos que fija esa normativa (hasta 6 años).",
+    "Destinatarios: el Ministerio del Interior (SES Hospedajes) y, cuando la ley lo exija, Fuerzas y Cuerpos de Seguridad, jueces y tribunales. Además, acceden a los datos, solo para prestarnos sus servicios y con contrato de encargado del tratamiento, nuestros proveedores de alojamiento de la aplicación y la base de datos (servidores en la Unión Europea), de correo y almacenamiento de documentos (Google) y de firma electrónica del contrato (Dropbox Sign). Algunos de estos proveedores pueden tratar datos en Estados Unidos, con las garantías del Marco de Privacidad de Datos UE-EE. UU. o cláusulas contractuales tipo de la Comisión Europea. El propietario del apartamento puede conocer los datos de la reserva necesarios para su gestión.",
+    "Derechos: puede ejercer sus derechos de acceso, rectificación, supresión, oposición, limitación del tratamiento y portabilidad escribiendo a hola@botonesmadrid.com o a la dirección postal indicada, acreditando su identidad. La supresión no podrá aplicarse a los datos que la ley nos obliga a conservar mientras dure ese plazo. Si considera que no hemos tratado sus datos correctamente, puede reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).",
+  ],
+  en: [
+    `Data controller: ${RESPONSABLE}.`,
+    "Data we process: first name and surnames, sex, date of birth, nationality, identity document (type, number and support number), address, phone, email, relationship with the lead guest, purpose of the trip and dates of stay. This is the data required by Spanish Royal Decree 933/2021; if it is not provided we cannot register you and therefore cannot accommodate you. Data of minors is provided by their parent or guardian.",
+    "Purposes and legal basis: (1) registering guests and reporting them to the Spanish Ministry of the Interior through SES Hospedajes, to comply with a legal obligation (Art. 6(1)(c) GDPR; Art. 25 of Organic Law 4/2015 and Royal Decree 933/2021); (2) managing the booking, the accommodation contract, its signature and the stay (Art. 6(1)(b) GDPR, performance of a contract). No automated decisions or profiling take place and the data is not used for marketing.",
+    "Retention: guest registration data is kept for 3 years after the end of the stay (Art. 5 of Royal Decree 933/2021) and then erased. Booking data needed for accounting and tax obligations is kept for the periods set by that legislation (up to 6 years).",
+    "Recipients: the Ministry of the Interior (SES Hospedajes) and, where required by law, law enforcement authorities and courts. In addition, the following providers access the data only to provide their services to us and under data processing agreements: hosting of the application and database (servers in the European Union), email and document storage (Google) and electronic signature of the contract (Dropbox Sign). Some of these providers may process data in the United States, with the safeguards of the EU-US Data Privacy Framework or the European Commission's standard contractual clauses. The owner of the apartment may access the booking data needed to manage it.",
+    "Your rights: you may exercise your rights of access, rectification, erasure, objection, restriction of processing and portability by writing to hola@botonesmadrid.com or to the postal address above, proving your identity. Erasure cannot apply to data we are legally required to keep while that period lasts. If you believe we have not processed your data properly, you may lodge a complaint with the Spanish Data Protection Agency (www.aepd.es).",
+  ],
 };
 
 // --- Validaciones -----------------------------------------------------------
@@ -317,18 +356,20 @@ export default function FormularioHuespedes({ token }: { token: string }) {
   const arriba = useRef<HTMLDivElement>(null);
   const claveBorrador = `formulario-${token}`;
 
-  // Idioma del navegador y borrador guardado en este dispositivo.
+  // Idioma del navegador y borrador del huésped en curso. El borrador va en sessionStorage (se borra al cerrar la
+  // pestaña), no en localStorage: contiene datos del documento de identidad y el móvil puede ser compartido.
   useEffect(() => {
     if (!navigator.language?.toLowerCase().startsWith("es")) setIdioma("en");
     try {
-      const b = localStorage.getItem(claveBorrador);
+      localStorage.removeItem(claveBorrador); // borradores de versiones anteriores
+      const b = sessionStorage.getItem(claveBorrador);
       if (b) setH({ ...VACIO, ...JSON.parse(b), consentimiento: false });
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(claveBorrador, JSON.stringify(h));
+      sessionStorage.setItem(claveBorrador, JSON.stringify(h));
     } catch {}
   }, [h, claveBorrador]);
 
@@ -711,10 +752,24 @@ export function CamposPaso({
 
         <div className="rounded-lg border border-line bg-paper p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-ink/50">{t.privacidad}</p>
-          <button type="button" onClick={() => setVerPrivacidad((v) => !v)} className="mt-1 text-xs text-ink/60 underline">
-            {t.privacidadLeer}
+          <dl className="mt-2 space-y-1 text-xs leading-relaxed text-ink/70">
+            {PRIVACIDAD_BASICA[idioma].map(([k, v]) => (
+              <div key={k}>
+                <dt className="inline font-medium text-ink/80">{k}: </dt>
+                <dd className="inline">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <button type="button" onClick={() => setVerPrivacidad((v) => !v)} className="mt-2 text-xs text-ink/60 underline">
+            {verPrivacidad ? t.privacidadCerrar : t.privacidadLeer}
           </button>
-          {verPrivacidad && <p className="mt-2 text-xs leading-relaxed text-ink/70">{PRIVACIDAD[idioma]}</p>}
+          {verPrivacidad && (
+            <div className="mt-2 space-y-2 text-xs leading-relaxed text-ink/70">
+              {PRIVACIDAD[idioma].map((parrafo) => (
+                <p key={parrafo}>{parrafo}</p>
+              ))}
+            </div>
+          )}
           <label className="!mb-0 mt-3 flex items-start gap-2.5 !text-sm !font-normal !text-ink">
             <input
               type="checkbox"
@@ -754,7 +809,7 @@ export function Marco({
   idioma: Idioma;
   setIdioma: (i: Idioma) => void;
   titulo: string;
-  refArriba: React.RefObject<HTMLDivElement>;
+  refArriba: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }) {
   return (

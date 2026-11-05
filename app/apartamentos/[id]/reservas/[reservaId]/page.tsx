@@ -2,12 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function ReservaPage({
-  params,
-}: {
-  params: { id: string; reservaId: string };
-}) {
-  const supabase = createClient();
+export default async function ReservaPage(props: { params: Promise<{ id: string; reservaId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
 
   const { data: reserva } = await supabase
     .from("reservas")
