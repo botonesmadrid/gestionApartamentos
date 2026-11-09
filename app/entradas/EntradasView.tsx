@@ -1,5 +1,6 @@
 "use client";
 
+import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva, HUESPED_NUEVO } from "./Edicion";
@@ -8,20 +9,10 @@ import RegistrosPendientes from "./RegistrosPendientes";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 type Apartamento = { id: string; piso: string };
-type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string };
+type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string; color_calendario: number | null };
 
-// Color fijo por cliente (por orden de alta: un cliente nuevo no cambia los colores de los demás).
-const COLORES_CLIENTE = [
-  { franja: "before:bg-sky-500", etiqueta: "bg-sky-100 text-sky-900 ring-sky-300" },
-  { franja: "before:bg-amber-500", etiqueta: "bg-amber-100 text-amber-900 ring-amber-300" },
-  { franja: "before:bg-violet-500", etiqueta: "bg-violet-100 text-violet-900 ring-violet-300" },
-  { franja: "before:bg-emerald-500", etiqueta: "bg-emerald-100 text-emerald-900 ring-emerald-300" },
-  { franja: "before:bg-rose-500", etiqueta: "bg-rose-100 text-rose-900 ring-rose-300" },
-  { franja: "before:bg-teal-500", etiqueta: "bg-teal-100 text-teal-900 ring-teal-300" },
-  { franja: "before:bg-orange-500", etiqueta: "bg-orange-100 text-orange-900 ring-orange-300" },
-  { franja: "before:bg-indigo-500", etiqueta: "bg-indigo-100 text-indigo-900 ring-indigo-300" },
-];
-const SIN_CLIENTE = { franja: "before:bg-line", etiqueta: "bg-paper text-ink/50 ring-line" };
+// Color de cada cliente: el mismo que en Google Calendar (clientes.color_calendario).
+const SIN_CLIENTE = COLOR_SIN_ASIGNAR;
 type Origen = { codigo: string; nombre: string };
 
 // Valor especial del filtro de origen para las reservas sin origen informado.
@@ -1103,13 +1094,7 @@ export default function EntradasView({
   const [clienteId, setClienteId] = useState("");
 
   const clientesPorId = useMemo(() => {
-    const porAlta = [...clientes].sort((a, b) => a.created_at.localeCompare(b.created_at));
-    return new Map(
-      porAlta.map((c, i) => [
-        c.id,
-        { ...c, color: COLORES_CLIENTE[i % COLORES_CLIENTE.length] },
-      ]),
-    );
+    return new Map(clientes.map((c) => [c.id, { ...c, color: hexCliente(c.color_calendario) }]));
   }, [clientes]);
   const [origen, setOrigen] = useState("");
   const [nochesMin, setNochesMin] = useState("");
@@ -1518,18 +1503,22 @@ export default function EntradasView({
             return (
               <div
                 key={r.id}
-                className={`relative overflow-hidden rounded-lg border border-line bg-white pl-1.5 before:absolute before:inset-y-0 before:left-0 before:w-1.5 ${
-                  (cliente?.color ?? SIN_CLIENTE).franja
-                } ${r.fase === "cancelada" ? "opacity-60" : ""}`}
+                className={`relative overflow-hidden rounded-lg border border-line bg-white pl-1.5 before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-[var(--color-cliente)] ${
+                  r.fase === "cancelada" ? "opacity-60" : ""
+                }`}
+                style={{ "--color-cliente": cliente?.color ?? SIN_CLIENTE } as React.CSSProperties}
               >
                 {/* Todas las entradas con la misma altura: en pantalla ancha (≥1360 px) una línea con columnas fijas;
                     en portátil/tableta siempre dos líneas (datos y botones / pasos); en móvil se reparte. */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid sm:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto] sm:gap-x-4 min-[1360px]:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto_auto]">
                   <span
                     title={cliente?.nombre ?? "Sin cliente"}
-                    className={`inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide ring-1 ring-inset sm:row-span-2 min-[1360px]:row-span-1 ${
-                      (cliente?.color ?? SIN_CLIENTE).etiqueta
-                    }`}
+                    className="inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide sm:row-span-2 min-[1360px]:row-span-1"
+                    style={{
+                      color: cliente?.color ?? SIN_CLIENTE,
+                      background: `${cliente?.color ?? SIN_CLIENTE}1a`,
+                      boxShadow: `inset 0 0 0 1px ${cliente?.color ?? SIN_CLIENTE}66`,
+                    }}
                   >
                     {cliente?.codigo ?? cliente?.nombre?.slice(0, 2).toUpperCase() ?? "—"}
                   </span>

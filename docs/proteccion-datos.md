@@ -90,7 +90,7 @@ supera los 3 años desde el fin de la estancia (la papelera se vacía sola a los
 | Dónde | Qué | Estado |
 |---|---|---|
 | Google Drive | Carpetas de contratos y XML de SES: por los identificadores guardados en la entrada y recorriendo `CONTRATOS DE ALQUILER <año>/<MM>.- <MES>/<DD>_…` de cada cliente (por fecha de entrada, con 60 días de margen) | Funciona |
-| Google Calendar | Eventos de las entradas | Aún no se sincroniza el calendario; cuando se haga, necesitará el permiso `calendar.events` |
+| Google Calendar | Eventos de las entradas (uno por entrada, el día de entrada; ver `supabase/functions/calendario`) | Necesita el permiso `calendar.events` (ver abajo) |
 | Gmail | — | No se automatiza: se borra a mano (decisión del 05/11/2026) |
 
 Simulación (no borra nada, solo cuenta), desde el editor SQL:
@@ -104,7 +104,13 @@ select net.http_post(
 -- y al cabo de unos segundos: select content from net._http_response order by id desc limit 1;
 ```
 
-### Ampliar los permisos de Google (cuando se sincronice Calendar)
+### Ampliar los permisos de Google (necesario para Google Calendar)
+Las entradas se sincronizan solas con Google Calendar (función `calendario`: al crear, modificar, cancelar o borrar
+una entrada y cada 10 minutos). Mientras el refresh token no tenga `calendar.events`, la función responde
+`sin_permiso` y no se crea ningún evento. Comprobación, desde el editor SQL:
+`select public.calendario_llamar('{"pendientes": true}'::jsonb);` y al cabo de unos segundos
+`select content from net._http_response order by id desc limit 1;` → debe salir `"ok":true`.
+
 Hay que generar un nuevo *refresh token* de `hola@botonesmadrid.com` con todos los permisos que usa la app (Gmail
 lectura y envío, Drive, Docs y Calendar; el borrado de correos no lo hace la app aunque el permiso lo permita):
 
