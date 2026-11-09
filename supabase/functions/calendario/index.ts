@@ -1,4 +1,5 @@
-// Edge Function: sincroniza las entradas con Google Calendar (calendario principal de la cuenta de Google de la app).
+// Edge Function: sincroniza las entradas con Google Calendar: calendario "Entradas Botones" de hola@botonesmadrid.com,
+// compartido con las cuentas personales que lo necesiten (así los datos de huéspedes solo están en la cuenta de la empresa).
 //
 // Cada entrada con piso asignado (no "SIN ASIGNAR") y titular informado tiene un evento de día completo en su fecha de
 // entrada, con el color del cliente (clientes.color_calendario: el mismo que se usa en la app). Si la entrada se
@@ -13,12 +14,14 @@
 // Cuerpo:
 //  { reserva_id }          sincroniza esa entrada
 //  { evento_id }           quita ese evento (entrada borrada de la base de datos)
-//  { pendientes: true }    sincroniza las entradas desde ayer en adelante que no estén al día (máx. MAX_PENDIENTES)
+//  { pendientes: true }    sincroniza las entradas desde mañana en adelante que no estén al día (máx. MAX_PENDIENTES)
 // Necesita el permiso https://www.googleapis.com/auth/calendar.events en el OAuth de Google (si no: "sin_permiso").
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { hoyMadrid, tokenGoogle } from "../_shared/google.ts";
 
-const CALENDARIO = "primary";
+// Calendario "Entradas Botones" de hola@botonesmadrid.com. Si se cambia, la revisión periódica mueve los eventos
+// (cada entrada guarda en calendario_sync.calendario dónde está su evento; sin ese dato, en "primary").
+const CALENDARIO = "c_253c4dcce281c0c5a2681e767954ec46c4d230bea1373aaa9067c6b96329665c@group.calendar.google.com";
 const APP = "https://gestion-apartamentos-nine.vercel.app";
 const MAX_PENDIENTES = 100;
 const CORS = {
@@ -40,7 +43,10 @@ const idEvento = (reservaId: string) => reservaId.replace(/-/g, "").toLowerCase(
 const SELECT = `id, estado, nombre, apellido1, fecha_entrada, fecha_salida, num_huespedes, codigo_reserva, apartamento_id,
   calendario_evento_id, calendario_sync, origenes_reserva(nombre), apartamentos(piso, clientes(codigo, nombre, color_calendario))`;
 
-type Sync = { entrada: string; salida: string; nombre: string; apartamento_id: string; num_huespedes: number | null; color: number | null };
+type Sync = {
+  entrada: string; salida: string; nombre: string; apartamento_id: string; num_huespedes: number | null; color: number | null;
+  calendario: string;
+};
 
 // deno-lint-ignore no-explicit-any
 const titularDe = (r: any) => [r.nombre, r.apellido1].map((x) => (x ?? "").trim()).filter(Boolean).join(" ");
@@ -56,12 +62,16 @@ const syncDe = (r: any): Sync => ({
   apartamento_id: r.apartamento_id,
   num_huespedes: r.num_huespedes ?? null,
   color: r.apartamentos?.clientes?.color_calendario ?? null,
+  calendario: CALENDARIO,
 });
+// Calendario donde está ahora el evento de la entrada.
+// deno-lint-ignore no-explicit-any
+const calendarioDe = (r: any): string => r.calendario_sync?.calendario ?? "primary";
 // deno-lint-ignore no-explicit-any
 const alDia = (r: any) => {
   if (!debeEstar(r)) return !r.calendario_evento_id;
   const s = r.calendario_sync as Sync | null;
-  if (!r.calendario_evento_id || !s) return false;
+  if (!r.calendario_evento_id || !s || calendarioDe(r) !== CALENDARIO) return false;
   const e = syncDe(r);
   return s.entrada === e.entrada && s.salida === e.salida && s.nombre === e.nombre && s.apartamento_id === e.apartamento_id &&
     (s.num_huespedes ?? null) === e.num_huespedes && (s.color ?? null) === e.color;
@@ -101,9 +111,9 @@ Deno.serve(async (req) => {
     return json({ error: "google", detalle: String(e).slice(0, 300) }, 502);
   }
   // Google limita las escrituras seguidas (403/429 rateLimitExceeded): se reintenta esperando cada vez más.
-  const cal = async (ruta: string, init: RequestInit = {}) => {
+  const cal = async (ruta: string, init: RequestInit = {}, calendario = CALENDARIO) => {
     for (let intento = 0; ; intento++) {
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${CALENDARIO}/events${ruta}`, {
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendario)}/events${ruta}`, {
         ...init,
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers ?? {}) },
       });
@@ -118,16 +128,18 @@ Deno.serve(async (req) => {
     if (res.status === 403 && /has not been used|disabled/i.test(txt)) throw new ErrorGoogle("api_desactivada");
     throw new ErrorGoogle("google", `${res.status} ${txt.slice(0, 300)}`);
   };
-  const borrar = async (id: string) => {
-    const res = await cal(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const borrar = async (id: string, calendario = CALENDARIO) => {
+    const res = await cal(`/${encodeURIComponent(id)}`, { method: "DELETE" }, calendario);
     if (!res.ok && res.status !== 404 && res.status !== 410) await fallo(res);
   };
 
   // deno-lint-ignore no-explicit-any
   async function sincronizar(r: any) {
     const id = idEvento(r.id);
-    // Evento antiguo con otro id (creado antes de usar ids fijos): se quita.
-    if (r.calendario_evento_id && r.calendario_evento_id !== id) await borrar(r.calendario_evento_id);
+    // Evento antiguo con otro id o en otro calendario: se quita de donde estaba.
+    if (r.calendario_evento_id && (r.calendario_evento_id !== id || calendarioDe(r) !== CALENDARIO)) {
+      await borrar(r.calendario_evento_id, calendarioDe(r));
+    }
 
     if (!debeEstar(r)) {
       await borrar(id);
@@ -182,12 +194,12 @@ Deno.serve(async (req) => {
   try {
     // Entrada borrada de la base de datos: solo queda quitar su evento.
     if (cuerpo.evento_id) {
-      await borrar(String(cuerpo.evento_id));
+      await borrar(String(cuerpo.evento_id), cuerpo.calendario ? String(cuerpo.calendario) : CALENDARIO);
       return json({ ok: true, quitado: true });
     }
 
     if (cuerpo.pendientes) {
-      const desde = sumarDia(hoyMadrid(), -1);
+      const desde = sumarDia(hoyMadrid(), 1); // desde mañana
       const { data, error } = await db.from("reservas").select(SELECT)
         .gte("fecha_entrada", desde)
         .order("fecha_entrada")

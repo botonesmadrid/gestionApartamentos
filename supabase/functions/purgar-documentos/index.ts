@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
   try {
     const { data: viejas, error } = await db
       .from("reservas")
-      .select("id, contrato_carpeta_id, contrato_pdf_id, contrato_firmado_pdf_id, ses_xml_id, calendario_evento_id")
+      .select("id, contrato_carpeta_id, contrato_pdf_id, contrato_firmado_pdf_id, ses_xml_id, calendario_evento_id, calendario_sync")
       .lt("fecha_salida", corte)
       .or("contrato_carpeta_id.not.is.null,contrato_pdf_id.not.is.null,contrato_firmado_pdf_id.not.is.null,ses_xml_id.not.is.null,calendario_evento_id.not.is.null")
       .limit(MAX_RESERVAS);
@@ -163,7 +163,8 @@ Deno.serve(async (req) => {
         r.calendario.eventos++;
         if (!simulacion) {
           const res = await fetch(
-            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(v.calendario_evento_id)}`,
+            // En el calendario donde se creó (calendario_sync.calendario; las antiguas, en el principal).
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(v.calendario_sync?.calendario ?? "primary")}/events/${encodeURIComponent(v.calendario_evento_id)}`,
             { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
           );
           if (res.ok || res.status === 404 || res.status === 410) eventoBorrado = true;
