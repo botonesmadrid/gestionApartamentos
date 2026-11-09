@@ -68,6 +68,7 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
     async function cargarOpciones() {
       const camposSelect = config.campos.filter((c) => c.tipo === "select" && c.select);
       const nuevas: Opciones = {};
+      for (const campo of config.campos) if (campo.opciones) nuevas[campo.key] = campo.opciones;
       for (const campo of camposSelect) {
         const { data } = await supabase
           .from(campo.select!.tabla)
@@ -121,7 +122,7 @@ export default function MaestroCrud({ config }: { config: MaestroConfig }) {
   function etiquetaDe(campoKey: string, valor: any) {
     const opts = opciones[campoKey];
     if (!opts) return valor ?? "";
-    return opts.find((o) => o.valor === valor)?.etiqueta ?? valor ?? "";
+    return opts.find((o) => String(o.valor) === String(valor))?.etiqueta ?? valor ?? "";
   }
 
   function empezarEdicion(fila: Fila) {

@@ -1,3 +1,5 @@
+import { OPCIONES_COLOR } from "@/lib/coloresCalendario";
+
 export type TipoCampo = "text" | "select" | "numero" | "sino" | "check";
 
 export interface CampoSelect {
@@ -12,6 +14,7 @@ export interface MaestroCampo {
   tipo: TipoCampo;
   requerido?: boolean;
   select?: CampoSelect;
+  opciones?: { valor: string; etiqueta: string }[]; // select con opciones fijas (en vez de una tabla)
   enLista?: boolean; // false: solo en el formulario, no como columna de la tabla
   enlace?: "carpeta" | "documento"; // ID de Google Drive/Docs: se muestra un enlace para abrirlo
   defecto?: string; // valor inicial en el alta ("true"/"false" para los check)
@@ -63,6 +66,7 @@ export const MAESTROS: MaestroConfig[] = [
     campos: [
       { key: "codigo", etiqueta: "Código", tipo: "text" },
       { key: "nombre", etiqueta: "Nombre", tipo: "text", requerido: true },
+      { key: "color_calendario", etiqueta: "Color (app y Google Calendar)", tipo: "select", opciones: OPCIONES_COLOR },
       { key: "activo", etiqueta: "Activo (si no, sus registros dejan de verse en la app)", tipo: "sino" },
       { key: "email", etiqueta: "Email", tipo: "text" },
       { key: "telefono", etiqueta: "Teléfono", tipo: "text" },

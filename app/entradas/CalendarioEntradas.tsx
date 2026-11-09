@@ -2,13 +2,16 @@
 
 // Vista de calendario de Entradas: una fila por piso (agrupados por cliente) y una columna por día; cada entrada es
 // una barra de la entrada a la salida con el nombre del titular. Se pueden ocultar clientes y pisos (se recuerda en
-// este dispositivo). Cada barra indica si está en Google Calendar y al día; al pulsarla se puede enviar o actualizar.
+// este dispositivo). Cada cliente se pinta con su color, el mismo que sus eventos en Google Calendar.
+// Las entradas se envían solas a Google Calendar (al crearlas, modificarlas o cancelarlas, y en una revisión cada
+// 10 minutos) cuando tienen piso asignado y titular; cada barra indica si está al día y al pulsarla se puede reenviar.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
 
 type Apto = { id: string; piso: string; cliente_id: string | null };
-type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string };
+type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string; color_calendario: number | null };
 type Entrada = {
   id: string;
   apartamento_id: string;
@@ -21,13 +24,11 @@ type Entrada = {
   estado: string;
   codigo_reserva: string | null;
   calendario_evento_id: string | null;
-  calendario_sync: { entrada: string; salida: string; nombre: string; apartamento_id: string; num_huespedes: number | null } | null;
+  calendario_sync: { entrada: string; salida: string; nombre: string; apartamento_id: string; num_huespedes: number | null; color?: number | null } | null;
   calendario_sincronizado_at: string | null;
   origenes_reserva: { nombre: string } | null;
 };
 
-// Colores por cliente (mismo orden que el listado: por fecha de alta del cliente).
-const COLORES = ["#0ea5e9", "#f59e0b", "#8b5cf6", "#10b981", "#f43f5e", "#14b8a6", "#f97316", "#6366f1"];
 const ANCHO_DIA = 36; // px
 const DIAS = 35;
 const CLAVE_OCULTOS = "calendario-ocultos";
@@ -40,22 +41,26 @@ const sumar = (f: string, n: number) => {
 };
 const dias = (a: string, b: string) => Math.round((new Date(b + "T12:00:00").getTime() - new Date(a + "T12:00:00").getTime()) / 864e5);
 const fechaCorta = (f: string) => f.split("-").reverse().join("/");
-const titularDe = (e: Entrada) => [e.nombre, e.apellido1].filter(Boolean).join(" ");
+const titularDe = (e: Entrada) => [e.nombre, e.apellido1].map((x) => (x ?? "").trim()).filter(Boolean).join(" ");
 
-type Sync = "al_dia" | "cambiada" | "sin_enviar";
-function estadoSync(e: Entrada): Sync {
-  if (e.estado === "cancelada") return e.calendario_evento_id ? "cambiada" : "al_dia"; // cancelada: hay que quitarla
+type Sync = "al_dia" | "cambiada" | "sin_enviar" | "no_aplica";
+// Igual que en la función calendario: va a Calendar si no está cancelada y tiene piso asignado y titular.
+function estadoSync(e: Entrada, piso: string | undefined, color: number | null): Sync {
+  const debeEstar = e.estado !== "cancelada" && !!piso && piso !== "SIN ASIGNAR" && !!titularDe(e);
+  if (!debeEstar) return e.calendario_evento_id ? "cambiada" : "no_aplica"; // hay que quitarla de Calendar
   if (!e.calendario_evento_id || !e.calendario_sync) return "sin_enviar";
   const s = e.calendario_sync;
   return s.entrada === e.fecha_entrada && s.salida === e.fecha_salida && s.nombre === titularDe(e) &&
-    s.apartamento_id === e.apartamento_id && (s.num_huespedes ?? null) === (e.num_huespedes ?? null)
+    s.apartamento_id === e.apartamento_id && (s.num_huespedes ?? null) === (e.num_huespedes ?? null) &&
+    (s.color ?? null) === color
     ? "al_dia"
     : "cambiada";
 }
 const SYNC: Record<Sync, { icono: string; texto: string; clase: string }> = {
   al_dia: { icono: "✓", texto: "En Google Calendar y al día", clase: "text-emerald-700" },
   cambiada: { icono: "↻", texto: "En Google Calendar, pero ha cambiado desde que se envió", clase: "text-amber-700" },
-  sin_enviar: { icono: "○", texto: "No está en Google Calendar", clase: "text-ink/40" },
+  sin_enviar: { icono: "○", texto: "Aún no está en Google Calendar", clase: "text-ink/40" },
+  no_aplica: { icono: "–", texto: "No va a Google Calendar (cancelada, sin piso asignado o sin titular)", clase: "text-ink/40" },
 };
 
 export default function CalendarioEntradas({ apartamentos, clientes }: { apartamentos: Apto[]; clientes: Cliente[] }) {
@@ -108,16 +113,16 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
     cargar();
   }, [cargar]);
 
-  // Clientes (con su color) y sus pisos; "SIN ASIGNAR" al final de su cliente. Arriba CM y debajo Barco; el resto
-  // después, por fecha de alta. El color se mantiene por fecha de alta (el mismo que en el listado).
+  // Clientes (con su color de Google Calendar) y sus pisos; "SIN ASIGNAR" al final de su cliente. Arriba CM y debajo
+  // Barco; el resto después, por fecha de alta.
   const grupos = useMemo(() => {
     const porAlta = [...clientes].sort((a, b) => a.created_at.localeCompare(b.created_at));
     const prioridad = (c: Cliente) =>
       c.codigo?.toUpperCase() === "CM" ? 0 : /barco/i.test(`${c.codigo ?? ""} ${c.nombre}`) ? 1 : 2;
     return porAlta
-      .map((c, i) => ({
+      .map((c) => ({
         cliente: c,
-        color: COLORES[i % COLORES.length],
+        color: hexCliente(c.color_calendario),
         pisos: apartamentos
           .filter((a) => a.cliente_id === c.id)
           .sort((a, b) => (a.piso === "SIN ASIGNAR" ? 1 : b.piso === "SIN ASIGNAR" ? -1 : a.piso.localeCompare(b.piso, "es"))),
@@ -166,7 +171,12 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
 
   const colorDe = (aptoId: string) => {
     const g = grupos.find((x) => x.pisos.some((p) => p.id === aptoId));
-    return g?.color ?? "#94a3b8";
+    return g?.color ?? COLOR_SIN_ASIGNAR;
+  };
+  // Estado de la sincronización de una entrada (con el piso y el color de su cliente).
+  const syncDe = (e: Entrada) => {
+    const g = grupos.find((x) => x.pisos.some((p) => p.id === e.apartamento_id));
+    return estadoSync(e, g?.pisos.find((p) => p.id === e.apartamento_id)?.piso, g?.cliente.color_calendario ?? null);
   };
   const resumen = useMemo(() => {
     const visibles = entradas.filter((e) => {
@@ -175,9 +185,9 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
     });
     return {
       total: visibles.length,
-      sinEnviar: visibles.filter((e) => estadoSync(e) === "sin_enviar").length,
-      cambiadas: visibles.filter((e) => estadoSync(e) === "cambiada").length,
-      alDia: visibles.filter((e) => estadoSync(e) === "al_dia").length,
+      sinEnviar: visibles.filter((e) => syncDe(e) === "sin_enviar").length,
+      cambiadas: visibles.filter((e) => syncDe(e) === "cambiada").length,
+      alDia: visibles.filter((e) => syncDe(e) === "al_dia").length,
     };
   }, [entradas, grupos, ocultos]);
 
@@ -295,7 +305,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
                         const desde = Math.max(dias(inicio, e.fecha_entrada) + 0.5, 0);
                         const hasta = Math.min(dias(inicio, e.fecha_salida) + 0.5, DIAS);
                         if (hasta <= 0 || desde >= DIAS) return null;
-                        const s = SYNC[estadoSync(e)];
+                        const s = SYNC[syncDe(e)];
                         const cancelada = e.estado === "cancelada";
                         return (
                           <button
@@ -335,7 +345,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
             {(() => {
               const g = grupos.find((x) => x.pisos.some((p) => p.id === elegida.apartamento_id));
               const piso = g?.pisos.find((p) => p.id === elegida.apartamento_id)?.piso;
-              const sync = estadoSync(elegida);
+              const sync = syncDe(elegida);
               return (
                 <>
                   <div className="flex items-start justify-between gap-3">
@@ -372,15 +382,19 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
                   <div className="mt-4 flex justify-end">
                     <button
                       type="button"
-                      disabled={enviando || sync === "al_dia"}
+                      disabled={enviando || sync === "al_dia" || sync === "no_aplica"}
                       onClick={() => enviar(elegida)}
                       className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper disabled:opacity-40"
                     >
                       {enviando
                         ? "Enviando…"
-                        : elegida.estado === "cancelada"
-                          ? "Quitar de Google Calendar"
-                          : sync === "sin_enviar" ? "Enviar a Google Calendar" : sync === "cambiada" ? "Actualizar en Google Calendar" : "Al día en Google Calendar"}
+                        : sync === "no_aplica"
+                          ? "No va a Google Calendar"
+                          : sync === "sin_enviar"
+                            ? "Enviar a Google Calendar"
+                            : sync === "cambiada"
+                              ? elegida.estado === "cancelada" || !piso || piso === "SIN ASIGNAR" || !titularDe(elegida) ? "Quitar de Google Calendar" : "Actualizar en Google Calendar"
+                              : "Al día en Google Calendar"}
                     </button>
                   </div>
                 </>

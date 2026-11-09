@@ -20,7 +20,7 @@ export default async function Home(props: { searchParams: Promise<{ vista?: stri
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("apartamentos").select("id, piso, cliente_id").order("piso"),
-    supabase.from("clientes").select("id, nombre, codigo, created_at").eq("activo", true).order("nombre"),
+    supabase.from("clientes").select("id, nombre, codigo, created_at, color_calendario").eq("activo", true).order("nombre"),
     supabase.from("origenes_reserva").select("codigo, nombre").order("nombre"),
   ]);
   if (!user) redirect("/login");
