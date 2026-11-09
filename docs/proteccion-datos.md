@@ -90,7 +90,7 @@ supera los 3 años desde el fin de la estancia (la papelera se vacía sola a los
 | Dónde | Qué | Estado |
 |---|---|---|
 | Google Drive | Carpetas de contratos y XML de SES: por los identificadores guardados en la entrada y recorriendo `CONTRATOS DE ALQUILER <año>/<MM>.- <MES>/<DD>_…` de cada cliente (por fecha de entrada, con 60 días de margen) | Funciona |
-| Google Calendar | Eventos de las entradas (uno por entrada, el día de entrada; ver `supabase/functions/calendario`) | Necesita el permiso `calendar.events` (ver abajo) |
+| Google Calendar | Eventos de las entradas en el calendario "Entradas Botones" de hola@ (uno por entrada, el día de entrada; ver `supabase/functions/calendario`). Se comparte con las cuentas personales que lo necesitan: los eventos no se copian, así que al borrarlos aquí desaparecen para todos | Necesita el permiso `calendar.events` (ver abajo) |
 | Gmail | — | No se automatiza: se borra a mano (decisión del 05/11/2026) |
 
 Simulación (no borra nada, solo cuenta), desde el editor SQL:
