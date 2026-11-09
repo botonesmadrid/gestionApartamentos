@@ -100,11 +100,18 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: "google", detalle: String(e).slice(0, 300) }, 502);
   }
-  const cal = (ruta: string, init: RequestInit = {}) =>
-    fetch(`https://www.googleapis.com/calendar/v3/calendars/${CALENDARIO}/events${ruta}`, {
-      ...init,
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers ?? {}) },
-    });
+  // Google limita las escrituras seguidas (403/429 rateLimitExceeded): se reintenta esperando cada vez más.
+  const cal = async (ruta: string, init: RequestInit = {}) => {
+    for (let intento = 0; ; intento++) {
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${CALENDARIO}/events${ruta}`, {
+        ...init,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers ?? {}) },
+      });
+      const limitado = res.status === 429 || (res.status === 403 && /rateLimitExceeded/.test(await res.clone().text()));
+      if (!limitado || intento >= 4) return res;
+      await new Promise((ok) => setTimeout(ok, 1000 * 2 ** intento + Math.random() * 500));
+    }
+  };
   const fallo = async (res: Response): Promise<never> => {
     const txt = await res.text();
     if (res.status === 403 && /insufficient|SCOPE/i.test(txt)) throw new ErrorGoogle("sin_permiso");
@@ -190,6 +197,7 @@ Deno.serve(async (req) => {
       const resultado = { revisadas: data?.length ?? 0, sincronizadas: 0, errores: [] as string[] };
       for (const r of pendientes) {
         try {
+          if (resultado.sincronizadas) await new Promise((ok) => setTimeout(ok, 250)); // sin ráfagas contra Google
           await sincronizar(r);
           resultado.sincronizadas++;
         } catch (e) {
