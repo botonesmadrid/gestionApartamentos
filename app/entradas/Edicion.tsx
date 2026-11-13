@@ -384,6 +384,7 @@ export function EditarHuesped({
     e.preventDefault();
     setError("");
     if (!f.nombre.trim()) return setError("El nombre es obligatorio.");
+    if (!f.codigo_postal.trim()) return setError("El código postal es obligatorio (lo pide el parte de SES Hospedajes).");
     const espana = f.pais_codigo === "ESP";
     const cambios = {
       nombre: f.nombre.trim(),
@@ -416,7 +417,7 @@ export function EditarHuesped({
 
   return (
     <form onSubmit={guardar} className="space-y-2 text-sm">
-      <Fila etiqueta="Nombre">
+      <Fila etiqueta="Nombre *">
         <Texto valor={f.nombre} onChange={set("nombre")} />
       </Fila>
       <Fila etiqueta="Primer apellido">
@@ -449,7 +450,7 @@ export function EditarHuesped({
       <Fila etiqueta="Dirección">
         <Texto valor={f.direccion} onChange={set("direccion")} />
       </Fila>
-      <Fila etiqueta="Código postal">
+      <Fila etiqueta="Código postal *">
         <Texto valor={f.codigo_postal} onChange={set("codigo_postal")} />
       </Fila>
       {f.pais_codigo === "ESP" ? (
