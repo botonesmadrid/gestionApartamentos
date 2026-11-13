@@ -174,15 +174,43 @@ async function procesarLittleHotelier(db: any) {
 async function procesarFirmas(db: any) {
   const token = await tokenGmail();
   const g = new Google(token);
+  const { data: clientes } = await db.from("clientes").select("id, nombre, drive_carpeta_id");
+  const resultados: any[] = [];
+
+  // Firmas asignadas a mano desde Entradas (asignar_firma): falta guardar el PDF en la carpeta de la entrada.
+  const { data: pendientes } = await db.from("avisos_canal")
+    .select("id, mensaje_id, reserva_id").eq("canal", "hellosign").eq("datos->>pdf_pendiente", "true")
+    .not("reserva_id", "is", null).limit(FIRMAS_POR_PASADA);
+  for (const a of pendientes ?? []) {
+    try {
+      const m = await gmail(token, `messages/${a.mensaje_id}?format=full`);
+      const pdf = adjuntoPdf(m.payload);
+      const { data: r } = await db.from("reservas")
+        .select(`id, nombre, apellido1, fecha_entrada, titular_huesped_id, contrato_carpeta_id,
+          apartamentos(piso, cliente_id), huespedes!huespedes_reserva_id_fkey(id, created_at, nombre, apellido1, apellido2)`)
+        .eq("id", a.reserva_id).single();
+      const { data: av } = await db.from("avisos_canal").select("datos").eq("id", a.id).single();
+      let detalle: string;
+      if (!pdf) detalle = "asignada a mano; el correo no trae el PDF firmado";
+      else if (!r) detalle = "asignada a mano; no se encuentra la entrada";
+      else {
+        const ok = await guardarPdfFirmado(db, g, clientes ?? [], a.mensaje_id, pdf.body.attachmentId, r, null);
+        detalle = ok ? "asignada a mano; contrato firmado guardado en Drive" : "asignada a mano; el cliente no tiene carpeta de Drive configurada";
+      }
+      await db.from("avisos_canal").update({ detalle, datos: { ...(av?.datos ?? {}), pdf_pendiente: false } }).eq("id", a.id);
+      resultados.push({ id: a.mensaje_id, resultado: "asignada", detalle });
+    } catch (e) {
+      console.error("firma asignada:", e);
+      resultados.push({ id: a.mensaje_id, resultado: `error: ${String(e).slice(0, 200)}` }); // se reintenta en la siguiente pasada
+    }
+  }
+
   const lista = await gmail(token, `messages?includeSpamTrash=true&maxResults=200&q=${encodeURIComponent(CONSULTA_FIRMAS)}`);
   const ids: string[] = (lista.messages ?? []).map((m: any) => m.id);
-  if (!ids.length) return { procesados: 0 };
+  if (!ids.length) return { procesados: resultados.length, resultados };
   const { data: yaVistos } = await db.from("avisos_canal").select("mensaje_id").in("mensaje_id", ids);
   const vistos = new Set((yaVistos ?? []).map((v: any) => v.mensaje_id));
   const nuevos = ids.filter((id) => !vistos.has(id)).reverse().slice(0, FIRMAS_POR_PASADA);
-
-  const { data: clientes } = await db.from("clientes").select("id, nombre, drive_carpeta_id");
-  const resultados = [];
   for (const id of nuevos) {
     const m = await gmail(token, `messages/${id}?format=full`);
     const cab = Object.fromEntries((m.payload?.headers ?? []).map((h: any) => [h.name.toLowerCase(), h.value]));
@@ -190,10 +218,7 @@ async function procesarFirmas(db: any) {
     const cuerpo = cuerpoDe(m.payload);
     const firma = leerFirmaHelloSign(asunto, cuerpo);
     const recibido = new Date(Number(m.internalDate)).toISOString();
-    const partes: any[] = [];
-    const recorrer = (p: any) => { partes.push(p); (p.parts ?? []).forEach(recorrer); };
-    recorrer(m.payload);
-    const pdf = partes.find((p) => p.filename?.toLowerCase().endsWith(".pdf") && p.body?.attachmentId);
+    const pdf = adjuntoPdf(m.payload);
 
     const registrar = async (resultado: string, detalle: string | null, reservaId: string | null) => {
       await db.from("avisos_canal").insert({
@@ -242,24 +267,10 @@ async function procesarFirmas(db: any) {
     if (puntuadas.length > 1 && puntuadas[0].puntos === puntuadas[1].puntos) {
       await registrar("revisar", `varias reservas posibles para «${firma.firmante}»`, null); continue;
     }
-    const { r, t } = puntuadas[0];
-    const piso = String(r.apartamentos?.piso ?? "");
-    const nombreCompleto = [t?.nombre ?? r.nombre, t?.apellido1 ?? r.apellido1, t?.apellido2].filter(Boolean).join("_");
-
+    const { r } = puntuadas[0];
     try {
-      let carpeta = r.contrato_carpeta_id as string | null;
-      const raiz = (clientes ?? []).find((c: any) => c.id === r.apartamentos?.cliente_id)?.drive_carpeta_id;
-      if (!carpeta && raiz) carpeta = await g.carpetaReserva(raiz, r.fecha_entrada, nombreCompleto, piso);
-      if (!carpeta) { await registrar("revisar", "el cliente no tiene carpeta de Drive configurada", r.id); continue; }
-
-      const datosPdf = await g.adjuntoGmail(id, pdf.body.attachmentId);
-      const nombrePdf = limpiarNombre(`Contrato_temporal_${piso}_${nombreCompleto}_FIRMADO`) + ".pdf";
-      const subido = (await g.archivo(carpeta, nombrePdf)) ?? await g.subirPdf(nombrePdf, carpeta, datosPdf);
-      await db.from("reservas").update({
-        contrato_firmado_at: recibido,
-        contrato_firmado_pdf_id: subido.id,
-        contrato_carpeta_id: carpeta,
-      }).eq("id", r.id);
+      const ok = await guardarPdfFirmado(db, g, clientes ?? [], id, pdf.body.attachmentId, r, recibido);
+      if (!ok) { await registrar("revisar", "el cliente no tiene carpeta de Drive configurada", r.id); continue; }
       await registrar("actualizada", `contrato firmado guardado en Drive`, r.id);
     } catch (e) {
       console.error("firma HelloSign:", e);
@@ -267,4 +278,34 @@ async function procesarFirmas(db: any) {
     }
   }
   return { procesados: resultados.length, resultados };
+}
+
+// deno-lint-ignore no-explicit-any
+function adjuntoPdf(payload: any): any {
+  const partes: any[] = [];
+  const recorrer = (p: any) => { partes.push(p); (p.parts ?? []).forEach(recorrer); };
+  recorrer(payload);
+  return partes.find((p) => p.filename?.toLowerCase().endsWith(".pdf") && p.body?.attachmentId);
+}
+
+// Guarda el PDF firmado del correo en la carpeta de Drive de la entrada y marca el contrato como firmado.
+// firmadoAt: fecha a guardar en contrato_firmado_at (null = no tocarla). Devuelve false si no hay carpeta.
+// deno-lint-ignore no-explicit-any
+async function guardarPdfFirmado(db: any, g: Google, clientes: any[], mensajeId: string, adjuntoId: string, r: any, firmadoAt: string | null) {
+  const t = titularDe(r);
+  const piso = String(r.apartamentos?.piso ?? "");
+  const nombreCompleto = [t?.nombre ?? r.nombre, t?.apellido1 ?? r.apellido1, t?.apellido2].filter(Boolean).join("_");
+  let carpeta = r.contrato_carpeta_id as string | null;
+  const raiz = clientes.find((c: any) => c.id === r.apartamentos?.cliente_id)?.drive_carpeta_id;
+  if (!carpeta && raiz) carpeta = await g.carpetaReserva(raiz, r.fecha_entrada, nombreCompleto, piso);
+  if (!carpeta) return false;
+  const datosPdf = await g.adjuntoGmail(mensajeId, adjuntoId);
+  const nombrePdf = limpiarNombre(`Contrato_temporal_${piso}_${nombreCompleto}_FIRMADO`) + ".pdf";
+  const subido = (await g.archivo(carpeta, nombrePdf)) ?? await g.subirPdf(nombrePdf, carpeta, datosPdf);
+  await db.from("reservas").update({
+    ...(firmadoAt ? { contrato_firmado_at: firmadoAt } : {}),
+    contrato_firmado_pdf_id: subido.id,
+    contrato_carpeta_id: carpeta,
+  }).eq("id", r.id);
+  return true;
 }
