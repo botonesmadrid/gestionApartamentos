@@ -1239,7 +1239,8 @@ export default function EntradasView({
   return (
     <div>
       <div className="mb-3 flex flex-wrap justify-end gap-2">
-        <AvisosRevisar onCambio={cargar} />
+        <AvisosRevisar tipo="reservas" onCambio={cargar} />
+        <AvisosRevisar tipo="contratos" onCambio={cargar} />
         <RegistrosPendientes onCambio={cargar} />
         <EnlaceGeneral />
         <button
