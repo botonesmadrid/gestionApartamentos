@@ -4,7 +4,7 @@ import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva, HUESPED_NUEVO } from "./Edicion";
-import { AccionesEntrada, CopiarTitular, MoverHuesped } from "./Combinar";
+import { AccionesEntrada, CopiarTitular, EliminarHuesped, MoverHuesped } from "./Combinar";
 import RegistrosPendientes from "./RegistrosPendientes";
 import AvisosRevisar from "./AvisosRevisar";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
@@ -1744,10 +1744,6 @@ export default function EntradasView({
                 cerrarDetalle();
                 cargar();
               }}
-              onBorrado={() => {
-                cerrarDetalle();
-                cargar();
-              }}
             />
           ) : (
           <dl className="space-y-2">
@@ -1794,6 +1790,15 @@ export default function EntradasView({
                 }}
               />
             </>
+          )}
+          {!editando && (
+            <EliminarHuesped
+              huesped={detalleHuesped}
+              onHecho={() => {
+                cerrarDetalle();
+                cargar();
+              }}
+            />
           )}
         </ModalDetalle>
       )}
