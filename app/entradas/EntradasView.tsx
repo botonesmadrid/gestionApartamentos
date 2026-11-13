@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { EditarHuesped, EditarReserva, HUESPED_NUEVO } from "./Edicion";
 import { AccionesEntrada, CopiarTitular, MoverHuesped } from "./Combinar";
 import RegistrosPendientes from "./RegistrosPendientes";
+import AvisosRevisar from "./AvisosRevisar";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
 
 type Apartamento = { id: string; piso: string };
@@ -1238,6 +1239,7 @@ export default function EntradasView({
   return (
     <div>
       <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <AvisosRevisar onCambio={cargar} />
         <RegistrosPendientes onCambio={cargar} />
         <EnlaceGeneral />
         <button
