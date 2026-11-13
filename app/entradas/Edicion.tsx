@@ -340,13 +340,11 @@ export function EditarHuesped({
   reservaId,
   onGuardado,
   onCancelar,
-  onBorrado,
 }: {
   huesped: HuespedEditable;
   reservaId?: string;
   onGuardado: () => void;
   onCancelar: () => void;
-  onBorrado?: () => void;
 }) {
   const alta = !!reservaId;
   const supabase = useMemo(() => createClient(), []);
@@ -414,15 +412,6 @@ export function EditarHuesped({
     setGuardando(false);
     if (err) return setError(err.message);
     onGuardado();
-  }
-
-  async function borrar() {
-    if (!window.confirm(`¿Borrar a ${huesped.nombre}? Se elimina el registro del huésped.`)) return;
-    setGuardando(true);
-    const { error: err } = await supabase.from("huespedes").delete().eq("id", huesped.id);
-    setGuardando(false);
-    if (err) return setError(err.message);
-    onBorrado?.();
   }
 
   return (
@@ -495,13 +484,6 @@ export function EditarHuesped({
           onChange={set("motivo_viaje")}
         />
       </Fila>
-      {!alta && (
-        <div className="pt-2">
-          <button type="button" onClick={borrar} disabled={guardando} className="text-xs text-clay underline">
-            Borrar huésped
-          </button>
-        </div>
-      )}
       <Botonera guardando={guardando} error={error} onCancelar={onCancelar} />
     </form>
   );

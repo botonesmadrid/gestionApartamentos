@@ -196,6 +196,45 @@ export function AccionesEntrada({
   );
 }
 
+// Eliminar un huésped de su entrada (desde el detalle del huésped).
+export function EliminarHuesped({
+  huesped,
+  onHecho,
+}: {
+  huesped: { id: string; nombre: string; apellido1: string | null };
+  onHecho: () => void;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  const nombre = [huesped.nombre, huesped.apellido1].filter(Boolean).join(" ");
+
+  async function eliminar() {
+    if (!window.confirm(`¿Eliminar a ${nombre}? Se borra el registro del huésped. No se puede deshacer.`)) return;
+    setOcupado(true);
+    setError("");
+    const { error: err } = await supabase.from("huespedes").delete().eq("id", huesped.id);
+    setOcupado(false);
+    if (err) return setError(err.message);
+    window.dispatchEvent(new Event("pendientes-cambiados"));
+    onHecho();
+  }
+
+  return (
+    <div className="mt-4">
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={eliminar}
+        className="rounded-md border border-clay/40 px-3 py-1.5 text-sm text-clay hover:bg-clay/5 disabled:opacity-50"
+      >
+        Eliminar huésped
+      </button>
+      {error && <p className="mt-2 text-sm text-clay">{error}</p>}
+    </div>
+  );
+}
+
 // Mover un huésped a otra entrada.
 export function MoverHuesped({
   huesped,
