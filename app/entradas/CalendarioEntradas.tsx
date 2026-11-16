@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CampoFecha from "@/app/components/CampoFecha";
 import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
 
 type Apto = { id: string; piso: string; cliente_id: string | null };
@@ -216,7 +217,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
           <button type="button" onClick={() => setInicio(sumar(inicio, 7))} className="rounded-md border border-line px-2.5 py-1.5 hover:bg-paper">
             <span className="hidden sm:inline">Semana</span> →
           </button>
-          <input type="date" aria-label="Desde" className="!w-auto !py-1.5" value={inicio} onChange={(e) => e.target.value && setInicio(e.target.value)} />
+          <CampoFecha ariaLabel="Desde" className="w-44" valor={inicio} onChange={(v) => v && setInicio(v)} />
           {/* Pisos visibles: desplegable junto a las fechas, para que el calendario ocupe todo el ancho */}
           <div ref={refPisos} className="relative">
             <button

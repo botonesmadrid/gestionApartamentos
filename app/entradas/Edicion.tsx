@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CampoFecha from "@/app/components/CampoFecha";
 
 type Opcion = { valor: string; etiqueta: string };
 
@@ -228,13 +229,13 @@ export function EditarReserva({
         />
       </Fila>
       <Fila etiqueta="Entrada">
-        <Texto tipo="date" valor={f.fecha_entrada} onChange={set("fecha_entrada")} />
+        <CampoFecha valor={f.fecha_entrada} onChange={set("fecha_entrada")} />
       </Fila>
       <Fila etiqueta="Salida">
-        <Texto tipo="date" valor={f.fecha_salida} onChange={set("fecha_salida")} />
+        <CampoFecha valor={f.fecha_salida} onChange={set("fecha_salida")} />
       </Fila>
       <Fila etiqueta="Fecha de reserva">
-        <Texto tipo="date" valor={f.fecha_reserva} onChange={set("fecha_reserva")} />
+        <CampoFecha valor={f.fecha_reserva} onChange={set("fecha_reserva")} />
       </Fila>
       <Fila etiqueta="Titular (nombre)">
         <Texto valor={f.nombre} onChange={set("nombre")} />
@@ -279,7 +280,7 @@ export function EditarReserva({
         <Desplegable valor={f.forma_pago_codigo} opciones={formasPago} onChange={set("forma_pago_codigo")} />
       </Fila>
       <Fila etiqueta="Fecha de pago">
-        <Texto tipo="date" valor={f.fecha_pago} onChange={set("fecha_pago")} />
+        <CampoFecha valor={f.fecha_pago} onChange={set("fecha_pago")} />
       </Fila>
       <Botonera guardando={guardando} error={error} onCancelar={onCancelar} />
     </form>
@@ -430,7 +431,7 @@ export function EditarHuesped({
         <Desplegable valor={f.sexo_codigo} opciones={sexos} onChange={set("sexo_codigo")} />
       </Fila>
       <Fila etiqueta="Fecha de nacimiento">
-        <Texto tipo="date" valor={f.fecha_nacimiento} onChange={set("fecha_nacimiento")} />
+        <CampoFecha valor={f.fecha_nacimiento} onChange={set("fecha_nacimiento")} />
       </Fila>
       <Fila etiqueta="Nacionalidad">
         <Desplegable valor={f.nacionalidad_codigo} opciones={paises} onChange={set("nacionalidad_codigo")} />

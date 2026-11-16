@@ -3,6 +3,7 @@
 import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CampoFecha from "@/app/components/CampoFecha";
 import { EditarHuesped, EditarReserva, HUESPED_NUEVO } from "./Edicion";
 import { AccionesEntrada, CopiarTitular, EliminarHuesped, MoverHuesped } from "./Combinar";
 import RegistrosPendientes from "./RegistrosPendientes";
@@ -431,7 +432,7 @@ function ContratoPdf({ reserva, onCambio }: { reserva: Reserva; onCambio: () => 
   const pdfUrl = reserva.contrato_pdf_id ? `https://drive.google.com/file/d/${reserva.contrato_pdf_id}/view` : null;
   const carpetaUrl = reserva.contrato_carpeta_id ? `https://drive.google.com/drive/folders/${reserva.contrato_carpeta_id}` : null;
   const generado = reserva.contrato_generado_at
-    ? new Date(reserva.contrato_generado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
+    ? fechaHoraDMA(reserva.contrato_generado_at)
     : null;
 
   return (
@@ -561,7 +562,7 @@ function SesHospedajes({ reserva, onCambio }: { reserva: Reserva; onCambio: () =
   }
 
   const generado = reserva.ses_generado_at
-    ? new Date(reserva.ses_generado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
+    ? fechaHoraDMA(reserva.ses_generado_at)
     : null;
   return (
     <div className="w-full rounded-md border border-line bg-paper p-2.5">
@@ -624,7 +625,7 @@ function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado:
   const [copiado, setCopiado] = useState(false);
   const enlace = `${DOMINIO_REGISTRO}/f/${reserva.formulario_token}`;
   const enviado = reserva.formulario_enviado_at
-    ? new Date(reserva.formulario_enviado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
+    ? fechaHoraDMA(reserva.formulario_enviado_at)
     : null;
 
   async function copiar() {
@@ -814,7 +815,7 @@ function PasosReserva({ reserva, onCambio, conDatos }: { reserva: Reserva; onCam
   }
   const ahora = () => new Date().toISOString();
   const fechaHora = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : null;
+    iso ? fechaHoraDMA(iso) : null;
 
   const registrados = alojados(reserva);
 
@@ -883,7 +884,7 @@ function PasosReserva({ reserva, onCambio, conDatos }: { reserva: Reserva; onCam
               )}
               {conDatos && reserva.importe_neto != null && ` · neto ${euros(reserva.importe_neto)}`}
               {conDatos && reserva.formas_pago?.descripcion && ` · ${reserva.formas_pago.descripcion}`}
-              {conDatos && reserva.fecha_pago && ` · pagado el ${formatoFecha(reserva.fecha_pago)}`}
+              {conDatos && reserva.fecha_pago && ` · pagado el ${fechaDMA(reserva.fecha_pago)}`}
             </>
           }
         >
@@ -970,7 +971,7 @@ function PasosReserva({ reserva, onCambio, conDatos }: { reserva: Reserva; onCam
           resumen={
             reserva.checkin_at
               ? `Completado el ${fechaHora(reserva.checkin_at)}`
-              : bloqueoCheckin ?? `Entrada el ${formatoFecha(reserva.fecha_entrada)}`
+              : bloqueoCheckin ?? `Entrada el ${fechaDMA(reserva.fecha_entrada)}`
           }
         >
           {!cancelada &&
@@ -1030,10 +1031,10 @@ function PasosReserva({ reserva, onCambio, conDatos }: { reserva: Reserva; onCam
 // Detalle de una entrada: cabecera con los datos de la reserva y, debajo, su flujo de pasos.
 function DetalleEntrada({ reserva: r, onCambio }: { reserva: Reserva; onCambio: () => void }) {
   const datos: [string, React.ReactNode][] = [
-    ["Entrada", formatoFecha(r.fecha_entrada)],
-    ["Salida", formatoFecha(r.fecha_salida)],
+    ["Entrada", fechaDMA(r.fecha_entrada)],
+    ["Salida", fechaDMA(r.fecha_salida)],
     ["Noches", r.duracion ?? "—"],
-    ["Reservada", formatoFecha(r.fecha_reserva)],
+    ["Reservada", fechaDMA(r.fecha_reserva)],
     ["Origen", r.origenes_reserva?.nombre ?? "—"],
     ["Código", r.codigo_reserva ?? "—"],
     ["Teléfono", r.telefono ?? "—"],
@@ -1066,6 +1067,18 @@ function DetalleEntrada({ reserva: r, onCambio }: { reserva: Reserva; onCambio: 
       <PasosReserva reserva={r} onCambio={onCambio} conDatos />
     </div>
   );
+}
+
+// Detalle de la entrada: fechas como día-mes-año (16-11-2026) y, con hora, "16-11-2026 14:05" (hora local).
+function fechaDMA(iso: string | null) {
+  if (!iso) return "—";
+  const [a, m, d] = iso.slice(0, 10).split("-");
+  return `${d}-${m}-${a}`;
+}
+function fechaHoraDMA(iso: string) {
+  const f = new Date(iso);
+  const dd = (n: number) => String(n).padStart(2, "0");
+  return `${dd(f.getDate())}-${dd(f.getMonth() + 1)}-${f.getFullYear()} ${dd(f.getHours())}:${dd(f.getMinutes())}`;
 }
 
 function formatoFecha(iso: string | null) {
@@ -1384,21 +1397,11 @@ export default function EntradasView({
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <div>
               <label htmlFor="desde">Entrada desde</label>
-              <input
-                id="desde"
-                type="date"
-                value={desde}
-                onChange={(e) => setDesde(e.target.value)}
-              />
+              <CampoFecha id="desde" valor={desde} onChange={setDesde} />
             </div>
             <div>
               <label htmlFor="hasta">Entrada hasta</label>
-              <input
-                id="hasta"
-                type="date"
-                value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
-              />
+              <CampoFecha id="hasta" valor={hasta} onChange={setHasta} />
             </div>
           </div>
         )}
