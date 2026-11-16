@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import EntradasView from "./entradas/EntradasView";
 import CalendarioEntradas from "./entradas/CalendarioEntradas";
+import BotonNuevaEntrada from "./entradas/BotonNuevaEntrada";
 
 // Entradas: pestañas Lista (por defecto) y Calendario (?vista=calendario).
 export default async function Home(props: { searchParams: Promise<{ vista?: string }> }) {
@@ -27,7 +28,10 @@ export default async function Home(props: { searchParams: Promise<{ vista?: stri
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="font-display text-3xl font-semibold">Entradas</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-3xl font-semibold">Entradas</h1>
+        <BotonNuevaEntrada enLista={!calendario} />
+      </div>
       <p className="mt-1 text-sm text-ink/60">
         Listado de todas las reservas, con sus huéspedes agrupados.
       </p>

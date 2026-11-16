@@ -530,32 +530,6 @@ function EnlacesContrato({ reserva }: { reserva: Reserva }) {
 // Dominio público de los formularios de huéspedes (CNAME en IONOS → Vercel).
 const DOMINIO_REGISTRO = "https://registro.botonesmadrid.com";
 
-// Enlace único del formulario (el mismo para todas las reservas): para las plantillas de mensajes de los portales.
-// Los huéspedes rellenan sus fechas y los datos de todos; se vincula a la entrada por la fecha y el nombre.
-function EnlaceGeneral() {
-  const [copiado, setCopiado] = useState(false);
-  async function copiar() {
-    const url = DOMINIO_REGISTRO;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
-    } catch {
-      window.prompt("Copia el enlace general del formulario:", url);
-    }
-  }
-  return (
-    <button
-      type="button"
-      onClick={copiar}
-      title="El mismo enlace para todas las reservas: los huéspedes rellenan sus fechas y los datos de todos"
-      className="rounded-md border border-line px-3 py-1.5 text-sm text-ink/70 hover:text-ink"
-    >
-      {copiado ? "Enlace copiado ✓" : "Copiar enlace general del formulario"}
-    </button>
-  );
-}
-
 // Paso "SES Hospedajes": genera el XML del parte de viajeros en la carpeta de Drive de la entrada (función
 // ses-hospedajes). Se sube a mano a la plataforma SES y después se marca como comunicado.
 function SesHospedajes({ reserva, onCambio }: { reserva: Reserva; onCambio: () => void }) {
@@ -1142,14 +1116,23 @@ export default function EntradasView({
       setAccion(ACCIONES.some((x) => x.clave === a) ? (a as Accion) : null);
       const e = p.get("estado") ?? (p.get("pendientes") === "1" ? "pendiente_importe" : null);
       if (e && (e === "activas" || e === "todas" || e in FASE)) setEstadoFiltro(e as FiltroEstado);
+      // /?nueva=1 (desde el calendario): abre el alta y limpia el parámetro.
+      if (p.get("nueva") === "1") {
+        setNueva(true);
+        p.delete("nueva");
+        window.history.replaceState(null, "", p.toString() ? `/?${p}` : "/");
+      }
     };
     leer();
     const alCambiar = (ev: Event) => setAccion((ev as CustomEvent<Accion>).detail);
+    const abrirNueva = () => setNueva(true);
     window.addEventListener("filtro-accion", alCambiar);
     window.addEventListener("popstate", leer);
+    window.addEventListener("nueva-entrada", abrirNueva);
     return () => {
       window.removeEventListener("filtro-accion", alCambiar);
       window.removeEventListener("popstate", leer);
+      window.removeEventListener("nueva-entrada", abrirNueva);
     };
   }, []);
   const quitarAccion = () => {
@@ -1262,18 +1245,11 @@ export default function EntradasView({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap justify-end gap-2">
+      {/* Avisos pendientes (solo ocupan sitio si hay alguno). "+ Nueva entrada" está junto al título de la página. */}
+      <div className="mb-3 flex flex-wrap justify-end gap-2 empty:hidden">
         <AvisosRevisar tipo="reservas" onCambio={cargar} />
         <AvisosRevisar tipo="contratos" onCambio={cargar} />
         <RegistrosPendientes onCambio={cargar} />
-        <EnlaceGeneral />
-        <button
-          type="button"
-          onClick={() => setNueva(true)}
-          className="rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-paper hover:bg-ink/90"
-        >
-          + Nueva entrada
-        </button>
       </div>
       {nueva && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center sm:px-4" onClick={() => setNueva(false)}>
