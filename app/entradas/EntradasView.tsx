@@ -1525,15 +1525,24 @@ export default function EntradasView({
                   >
                     {cliente?.codigo ?? cliente?.nombre?.slice(0, 2).toUpperCase() ?? "—"}
                   </span>
-                  <div className="min-w-[10.5rem] sm:min-w-0">
+                  <div className="min-w-0 flex-1 sm:flex-none">
                     <div className="whitespace-nowrap text-sm font-medium">
                       {formatoFecha(r.fecha_entrada)} → {formatoFecha(r.fecha_salida)}
                     </div>
-                    <div className={`truncate text-xs ${r.piso_pendiente ? "text-amber-700" : "text-ink/50"}`}>
-                      {apartamento?.piso}
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className={`truncate text-xs ${r.piso_pendiente ? "text-amber-700" : "text-ink/50"}`}>
+                        {apartamento?.piso}
+                      </span>
+                      {/* Móvil: nombre y origen a la altura del piso, a la derecha (en pantallas mayores van en su columna). */}
+                      <span className="min-w-0 truncate text-right text-xs sm:hidden" title={`${r.nombre} ${r.apellido1 ?? ""}`}>
+                        <span className="font-medium text-ink">
+                          {r.nombre} {r.apellido1 ?? ""}
+                        </span>
+                        <span className="text-ink/60"> · {origen ?? "Sin origen"}</span>
+                      </span>
                     </div>
                   </div>
-                  <div className="min-w-0 flex-1 sm:flex-none">
+                  <div className="hidden min-w-0 sm:block">
                     <div className="truncate text-sm" title={`${r.nombre} ${r.apellido1 ?? ""}`}>
                       {r.nombre} {r.apellido1 ?? ""}
                     </div>
