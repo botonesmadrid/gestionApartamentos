@@ -1324,15 +1324,36 @@ export default function EntradasView({
       )}
       {/* Filtros */}
       <div className="rounded-lg border border-line bg-white p-4">
-        <div className="mb-4">
-          <label htmlFor="busqueda">Buscar por titular de la reserva</label>
-          <input
-            id="busqueda"
-            type="search"
-            placeholder="Nombre o apellidos"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_18rem]">
+          <div>
+            <label htmlFor="busqueda">Buscar por titular de la reserva</label>
+            <input
+              id="busqueda"
+              type="search"
+              placeholder="Nombre o apellidos"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+          {!accion && (
+            <div>
+              <label htmlFor="estado">Estado</label>
+              <select
+                id="estado"
+                value={estadoFiltro}
+                onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}
+              >
+                <option value="activas">Activas (todas menos canceladas)</option>
+                {FASES.map((f) => (
+                  <option key={f.valor} value={f.valor}>
+                    {f.etiqueta}
+                  </option>
+                ))}
+                <option value="todas">Todas</option>
+              </select>
+              {sinFechas && <p className="mt-1 text-xs text-ink/50">Se muestran todas las fechas: son tareas por hacer.</p>}
+            </div>
+          )}
         </div>
         {/* En el móvil el resto de filtros va plegado */}
         <button
@@ -1484,30 +1505,6 @@ export default function EntradasView({
           </button>
         </div>
       )}
-
-      <div className={`mt-3 flex flex-wrap items-end gap-3 text-sm ${accion ? "hidden" : ""}`}>
-        <div className="w-full sm:w-72">
-          <label htmlFor="estado">Estado</label>
-          <select
-            id="estado"
-            value={estadoFiltro}
-            onChange={(e) => setEstadoFiltro(e.target.value as FiltroEstado)}
-          >
-            <option value="activas">Activas (todas menos canceladas)</option>
-            {FASES.map((f) => (
-              <option key={f.valor} value={f.valor}>
-                {f.etiqueta}
-              </option>
-            ))}
-            <option value="todas">Todas</option>
-          </select>
-        </div>
-        {sinFechas && (
-          <span className="pb-2 text-xs text-ink/50">
-            Se muestran todas las fechas: son tareas por hacer.
-          </span>
-        )}
-      </div>
 
       {error && <p className="mt-3 text-sm text-clay">{error}</p>}
 
