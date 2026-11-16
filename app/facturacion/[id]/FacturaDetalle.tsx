@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EstadoFactura } from "../FacturacionView";
+import CampoFecha from "@/app/components/CampoFecha";
 
 type Factura = {
   id: string;
@@ -54,7 +55,7 @@ const eur = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 const num = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fecha = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
+const fecha = (iso: string | null) => (iso ? iso.split("-").reverse().join("-") : "—");
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const periodo = (d: string | null) => (d ? `${MESES[Number(d.slice(5, 7)) - 1]} de ${d.slice(0, 4)}` : "");
 const n = (v: string) => (v.trim() === "" ? 0 : Number(v.replace(/\s/g, "").replace(",", ".")));
@@ -457,7 +458,17 @@ function CampoGuardado({ etiqueta, valor, tipo, onGuardar }: { etiqueta: string;
   return (
     <div>
       <label>{etiqueta}</label>
-      <input type={tipo} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== valor && onGuardar(v)} />
+      {tipo === "date" ? (
+        <CampoFecha
+          valor={v}
+          onChange={(nuevo) => {
+            setV(nuevo);
+            if (nuevo && nuevo !== valor) onGuardar(nuevo);
+          }}
+        />
+      ) : (
+        <input type={tipo} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== valor && onGuardar(v)} />
+      )}
     </div>
   );
 }

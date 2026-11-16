@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CampoFecha from "@/app/components/CampoFecha";
 
 type Cliente = { id: string; codigo: string | null; nombre: string };
 type Origen = { codigo: string; nombre: string };
@@ -90,7 +91,7 @@ const num = (n: number | null | undefined, d = 2) =>
         maximumFractionDigits: d,
       });
 const fecha = (iso: string | null) =>
-  iso ? iso.split("-").reverse().join("/") : "—";
+  iso ? iso.split("-").reverse().join("-") : "—";
 const suma = (ls: Linea[], k: keyof Linea) =>
   ls.reduce((s, l) => s + (Number(l[k]) || 0), 0);
 
@@ -733,10 +734,10 @@ function EditarLinea({
               <input value={f.piso} onChange={set("piso")} />
             </Campo>
             <Campo etiqueta="Entrada">
-              <input type="date" value={f.entrada} onChange={set("entrada")} />
+              <CampoFecha valor={f.entrada} onChange={(v) => setF((p) => ({ ...p, entrada: v }))} />
             </Campo>
             <Campo etiqueta="Salida">
-              <input type="date" value={f.salida} onChange={set("salida")} />
+              <CampoFecha valor={f.salida} onChange={(v) => setF((p) => ({ ...p, salida: v }))} />
             </Campo>
             {f.servicio !== "Gestión" && (
               <>
@@ -780,21 +781,13 @@ function EditarLinea({
                   />
                 </Campo>
                 <Campo etiqueta="Fecha de reserva">
-                  <input
-                    type="date"
-                    value={f.fecha_reserva}
-                    onChange={set("fecha_reserva")}
-                  />
+                  <CampoFecha valor={f.fecha_reserva} onChange={(v) => setF((p) => ({ ...p, fecha_reserva: v }))} />
                 </Campo>
                 <Campo etiqueta="Documento">
                   <input value={f.documento} onChange={set("documento")} />
                 </Campo>
                 <Campo etiqueta="Fecha de pago">
-                  <input
-                    type="date"
-                    value={f.fecha_pago}
-                    onChange={set("fecha_pago")}
-                  />
+                  <CampoFecha valor={f.fecha_pago} onChange={(v) => setF((p) => ({ ...p, fecha_pago: v }))} />
                 </Campo>
                 <Campo etiqueta="Forma de pago">
                   <input value={f.forma_pago} onChange={set("forma_pago")} />

@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fechaHoraDMA } from "@/lib/fechas";
 
 type HuespedRegistro = {
   nombre: string;
@@ -35,7 +36,7 @@ type Candidata = {
   huespedes: { id: string }[];
 };
 
-const fecha = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
+const fecha = (iso: string | null) => (iso ? iso.split("-").reverse().join("-") : "—");
 const sumarDias = (iso: string, d: number) => {
   const x = new Date(iso + "T12:00:00");
   x.setDate(x.getDate() + d);
@@ -166,7 +167,7 @@ function TarjetaRegistro({ registro, onHecho }: { registro: Registro; onHecho: (
           <p className="font-medium">{registro.huespedes.map((h) => nombreDe(h)).join(", ")}</p>
           <p className="text-xs text-ink/60">
             {fecha(registro.fecha_entrada)} → {fecha(registro.fecha_salida)} · {registro.num_huespedes} huésp. · enviado el{" "}
-            {new Date(registro.created_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })}
+            {fechaHoraDMA(registro.created_at)}
           </p>
         </div>
         <button type="button" disabled={ocupado} onClick={descartar} className="text-xs text-clay underline disabled:opacity-50">

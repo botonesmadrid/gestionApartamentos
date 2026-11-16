@@ -9,6 +9,7 @@ import { AccionesEntrada, CopiarTitular, EliminarHuesped, MoverHuesped } from ".
 import RegistrosPendientes from "./RegistrosPendientes";
 import AvisosRevisar from "./AvisosRevisar";
 import { ACCIONES, filtrarAccion, type Accion } from "@/lib/acciones";
+import { fechaDMA, fechaHoraDMA } from "@/lib/fechas";
 
 type Apartamento = { id: string; piso: string };
 type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string; color_calendario: number | null };
@@ -1069,22 +1070,10 @@ function DetalleEntrada({ reserva: r, onCambio }: { reserva: Reserva; onCambio: 
   );
 }
 
-// Detalle de la entrada: fechas como día-mes-año (16-11-2026) y, con hora, "16-11-2026 14:05" (hora local).
-function fechaDMA(iso: string | null) {
-  if (!iso) return "—";
-  const [a, m, d] = iso.slice(0, 10).split("-");
-  return `${d}-${m}-${a}`;
-}
-function fechaHoraDMA(iso: string) {
-  const f = new Date(iso);
-  const dd = (n: number) => String(n).padStart(2, "0");
-  return `${dd(f.getDate())}-${dd(f.getMonth() + 1)}-${f.getFullYear()} ${dd(f.getHours())}:${dd(f.getMinutes())}`;
-}
-
 function formatoFecha(iso: string | null) {
   if (!iso) return "—";
   const [a, m, d] = iso.split("-");
-  return `${d}/${m}/${a}`;
+  return `${d}-${m}-${a}`;
 }
 
 export default function EntradasView({
@@ -1120,7 +1109,7 @@ export default function EntradasView({
   const [busquedaAplicada, setBusquedaAplicada] = useState("");
 
   // Acción pendiente elegida en el menú lateral (/?accion=…): muestra solo esas reservas,
-  // sin límite de fechas y con los pasos desplegados para actuar directamente.
+  // sin límite de fechas; el flujo de cada una se gestiona en su detalle.
   const [accion, setAccion] = useState<Accion | null>(null);
   useEffect(() => {
     const leer = () => {
@@ -1500,9 +1489,6 @@ export default function EntradasView({
             const apartamento = r.apartamentos;
             const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
-            // Desde una acción pendiente los pasos van desplegados (salvo el importe, que tiene su burbuja).
-            // Con un filtro de acción, el flujo se muestra desplegado en la fila; si no, se ve en el detalle.
-            const conPasos = !!accion;
             const cliente = r.apartamentos?.cliente_id ? clientesPorId.get(r.apartamentos.cliente_id) : undefined;
             return (
               <div
@@ -1577,17 +1563,6 @@ export default function EntradasView({
                   </div>
                 </div>
 
-                {conPasos && (
-                  <div className="border-t border-line bg-paper px-4 py-3">
-                    <PasosReserva
-                      reserva={r}
-                      onCambio={() => {
-                        window.dispatchEvent(new Event("pendientes-cambiados"));
-                        cargar();
-                      }}
-                    />
-                  </div>
-                )}
 
                 {abierta && (
                   <div className="border-t border-line bg-paper px-4 py-3">

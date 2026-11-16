@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CampoFecha from "@/app/components/CampoFecha";
 
 type Cliente = { id: string; codigo: string | null; nombre: string };
 type Factura = {
@@ -26,7 +27,7 @@ type Factura = {
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const eur = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
-const fecha = (iso: string) => iso.split("-").reverse().join("/");
+const fecha = (iso: string) => iso.split("-").reverse().join("-");
 
 export function EstadoFactura({ f }: { f: { estado: string; origen: string; enviada_at: string | null; tipo?: string } }) {
   const rect = f.tipo === "rectificativa" && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-900">Rectificativa</span>;
@@ -150,11 +151,11 @@ export default function FacturacionView({ clientes }: { clientes: Cliente[] }) {
           </div>
           <div>
             <label htmlFor="gd">Desde</label>
-            <input id="gd" type="date" value={genDesde} onChange={(e) => setGenDesde(e.target.value)} />
+            <CampoFecha id="gd" valor={genDesde} onChange={setGenDesde} />
           </div>
           <div>
             <label htmlFor="gh">Hasta</label>
-            <input id="gh" type="date" value={genHasta} onChange={(e) => setGenHasta(e.target.value)} />
+            <CampoFecha id="gh" valor={genHasta} onChange={setGenHasta} />
           </div>
           <div className="flex gap-2 pb-0.5 text-xs">
             {[1, 0].map((atras) => {

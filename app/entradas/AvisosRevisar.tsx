@@ -39,7 +39,7 @@ type Candidata = {
 const CANALES_RESERVAS = ["avirato", "littlehotelier"];
 const CANALES: Record<string, string> = { avirato: "Avirato", littlehotelier: "Little Hotelier", hellosign: "Firma de contrato" };
 const TIPOS: Record<string, string> = { alta: "Reserva nueva", modificacion: "Modificación", cancelacion: "Cancelación" };
-const fecha = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
+const fecha = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("-") : "—");
 
 const TEXTOS: Record<Tipo, { boton: (n: number) => string; titulo: string }> = {
   reservas: {

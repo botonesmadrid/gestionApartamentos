@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CampoFecha from "@/app/components/CampoFecha";
 
 type Factura = {
   id: string;
@@ -49,7 +50,7 @@ const eur = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 const num = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fecha = (iso: string) => iso.split("-").reverse().join("/");
+const fecha = (iso: string) => iso.split("-").reverse().join("-");
 const suma = (ls: Factura[], k: keyof Factura) => ls.reduce((s, l) => s + (Number(l[k]) || 0), 0);
 
 export default function GastosView() {
@@ -415,7 +416,7 @@ function EditarFactura({
           </div>
           <div>
             <label>Fecha</label>
-            <input type="date" {...campo("fecha")} />
+            <CampoFecha valor={f.fecha} onChange={(v) => cambiar("fecha", v)} />
           </div>
           <div className="col-span-2">
             <label>Familia</label>
