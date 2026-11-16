@@ -687,7 +687,7 @@ const alojados = (r: { huespedes?: { es_huesped: boolean }[] | null }) =>
 
 // Pasos de la reserva en la propia fila del listado: hecho (verde), el siguiente
 // por hacer (ámbar) y los que vienen después (gris). Al pulsar se abren las acciones.
-function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; abierto: boolean; onAbrir: () => void }) {
+function IndicadorPasos({ reserva: r }: { reserva: Reserva }) {
   const registrados = alojados(r);
   const pasos = [
     {
@@ -739,13 +739,7 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
   const siguiente = pasos.findIndex((p) => !p.hecho);
 
   return (
-    <button
-      type="button"
-      onClick={onAbrir}
-      aria-expanded={abierto}
-      className={`group flex flex-wrap items-center gap-1 sm:flex-nowrap rounded-md p-0.5 text-left ${abierto ? "bg-paper" : "hover:bg-paper"}`}
-      title="Ver y gestionar los pasos"
-    >
+    <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap rounded-md p-0.5 text-left">
       {pasos.map((p, i) => {
         const clase = p.hecho
           ? "bg-emerald-50 text-emerald-800 border-emerald-200"
@@ -765,10 +759,7 @@ function IndicadorPasos({ reserva: r, abierto, onAbrir }: { reserva: Reserva; ab
           </span>
         );
       })}
-      <span className="ml-1 text-xs text-ink/40 group-hover:text-ink/70" aria-hidden>
-        {abierto ? "▴" : "▾"}
-      </span>
-    </button>
+    </div>
   );
 }
 
@@ -1177,7 +1168,6 @@ export default function EntradasView({
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [expandida, setExpandidaId] = useState<string | null>(null);
-  const [pasosAbiertos, setPasosAbiertos] = useState<string | null>(null);
   const [detalleReserva, setDetalleReserva] = useState<Reserva | null>(null);
   const [detalleHuesped, setDetalleHuesped] = useState<Huesped | null>(null);
   const [reservaDelHuesped, setReservaDelHuesped] = useState<Reserva | null>(null);
@@ -1535,7 +1525,8 @@ export default function EntradasView({
             const origen = r.origenes_reserva?.nombre;
             const abierta = expandida === r.id;
             // Desde una acción pendiente los pasos van desplegados (salvo el importe, que tiene su burbuja).
-            const conPasos = accion ? pasosAbiertos !== r.id : pasosAbiertos === r.id;
+            // Con un filtro de acción, el flujo se muestra desplegado en la fila; si no, se ve en el detalle.
+            const conPasos = !!accion;
             const cliente = r.apartamentos?.cliente_id ? clientesPorId.get(r.apartamentos.cliente_id) : undefined;
             return (
               <div
@@ -1547,7 +1538,20 @@ export default function EntradasView({
               >
                 {/* Todas las entradas con la misma altura: en pantalla ancha (≥1360 px) una línea con columnas fijas;
                     en portátil/tableta siempre dos líneas (datos y botones / pasos); en móvil se reparte. */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid sm:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto] sm:gap-x-4 min-[1360px]:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto_auto]">
+                {/* Clic en cualquier parte de la fila: detalle de la entrada (salvo el botón de huéspedes). */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setDetalleReserva(r)}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      setDetalleReserva(r);
+                    }
+                  }}
+                  title="Ver el detalle de la entrada"
+                  className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 hover:bg-paper/60 focus:outline-none focus-visible:bg-paper sm:grid sm:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto] sm:gap-x-4 min-[1360px]:grid-cols-[2.75rem_10.5rem_minmax(0,1fr)_auto_auto]"
+                >
                   <span
                     title={cliente?.nombre ?? "Sin cliente"}
                     className="inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-md text-xs font-bold tracking-wide sm:row-span-2 min-[1360px]:row-span-1"
@@ -1577,29 +1581,23 @@ export default function EntradasView({
                     {r.fase === "cancelada" ? (
                       <EtiquetaFase fase={r.fase} />
                     ) : (
-                      <IndicadorPasos
-                        reserva={r}
-                        abierto={conPasos}
-                        onAbrir={() => setPasosAbiertos(pasosAbiertos === r.id ? null : r.id)}
-                      />
+                      <IndicadorPasos reserva={r} />
                     )}
                   </div>
 
                   <div className="flex w-full items-center justify-end gap-3 whitespace-nowrap text-sm sm:ml-auto sm:w-auto sm:col-start-4 sm:row-start-1 min-[1360px]:col-start-5">
                     <button
                       type="button"
-                      onClick={() => setExpandidaId(abierta ? null : r.id)}
-                      className="text-ink/60 hover:text-ink"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandidaId(abierta ? null : r.id);
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="rounded-md px-2 py-1 text-ink/60 hover:bg-white hover:text-ink"
                     >
                       {abierta ? "Ocultar huéspedes" : `Huéspedes (${alojados(r)})`}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setDetalleReserva(r)}
-                      className="rounded-md border border-line px-3 py-1.5 text-ink/70 hover:text-ink"
-                    >
-                      Detalle
-                    </button>
+                    <span aria-hidden className="text-ink/30">›</span>
                   </div>
                 </div>
 
