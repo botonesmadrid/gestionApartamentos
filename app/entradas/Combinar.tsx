@@ -17,7 +17,7 @@ type Candidata = {
   apartamentos: { piso: string } | null;
 };
 
-const fecha = (iso: string) => iso.split("-").reverse().join("/");
+const fecha = (iso: string) => iso.split("-").reverse().join("-");
 const sumarDias = (iso: string, d: number) => {
   const x = new Date(iso + "T12:00:00");
   x.setDate(x.getDate() + d);

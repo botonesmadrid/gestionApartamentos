@@ -15,6 +15,7 @@ import {
   valorFuturo,
   type Anual,
 } from "./reporting";
+import { fechaDMA } from "./fechas";
 
 export type DatosFacturacion = {
   iva: { anio: number; trimestre: number; base_ingresos: number; iva_repercutido: number; base_gastos: number; iva_soportado: number; iva_a_pagar: number; resultado: number }[];
@@ -60,7 +61,7 @@ export async function generarInformeTrimestral(opts: {
     s.addText("Informe trimestral", { x: 0.8, y: 2.2, w: 11.5, h: 0.8, fontSize: 40, bold: true, color: TINTA, fontFace: "Arial" });
     s.addText(`${nombreQ} · ${MESES[mesesQ[0]]} – ${MESES[mesesQ[2]]}`, { x: 0.8, y: 3.1, w: 11.5, h: 0.6, fontSize: 22, color: TINTA, fontFace: "Arial" });
     s.addText(`${nombreCliente} · comparado con el ${t}T ${P}`, { x: 0.8, y: 3.8, w: 11.5, h: 0.5, fontSize: 16, color: SUAVE, fontFace: "Arial" });
-    s.addText(`El Botones Madrid · generado el ${new Date().toLocaleDateString("es-ES")}`, { x: 0.8, y: 6.6, w: 11.5, h: 0.4, fontSize: 11, color: SUAVE, fontFace: "Arial" });
+    s.addText(`El Botones Madrid · generado el ${fechaDMA(new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" }))}`, { x: 0.8, y: 6.6, w: 11.5, h: 0.4, fontSize: 11, color: SUAVE, fontFace: "Arial" });
   }
 
   // 2. KPIs del trimestre vs año anterior

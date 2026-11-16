@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import CampoFecha from "@/app/components/CampoFecha";
 import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
+import { fechaHoraDMA } from "@/lib/fechas";
 
 type Apto = { id: string; piso: string; cliente_id: string | null };
 type Cliente = { id: string; nombre: string; codigo: string | null; created_at: string; color_calendario: number | null };
@@ -41,7 +42,7 @@ const sumar = (f: string, n: number) => {
   return iso(d);
 };
 const dias = (a: string, b: string) => Math.round((new Date(b + "T12:00:00").getTime() - new Date(a + "T12:00:00").getTime()) / 864e5);
-const fechaCorta = (f: string) => f.split("-").reverse().join("/");
+const fechaCorta = (f: string) => f.split("-").reverse().join("-");
 const titularDe = (e: Entrada) => [e.nombre, e.apellido1].map((x) => (x ?? "").trim()).filter(Boolean).join(" ");
 
 type Sync = "al_dia" | "cambiada" | "sin_enviar" | "no_aplica";
@@ -391,7 +392,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
                         {SYNC[sync].icono} {SYNC[sync].texto}
                         {elegida.calendario_sincronizado_at && (
                           <span className="block text-right text-xs text-ink/40">
-                            Enviada el {new Date(elegida.calendario_sincronizado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })}
+                            Enviada el {fechaHoraDMA(elegida.calendario_sincronizado_at)}
                           </span>
                         )}
                       </dd>

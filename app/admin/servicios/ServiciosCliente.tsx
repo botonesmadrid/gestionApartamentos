@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ReglasGestion from "./ReglasGestion";
+import CampoFecha from "@/app/components/CampoFecha";
 
 type Cliente = { id: string; codigo: string | null; nombre: string };
 type Pestana = "general" | "checkin" | "limpieza" | "gestion";
@@ -16,7 +17,7 @@ const PESTANAS: { clave: Pestana; etiqueta: string }[] = [
 
 const eur = (n: number | null | undefined) =>
   n == null ? "—" : Number(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
-const fecha = (iso: string) => iso.split("-").reverse().join("/");
+const fecha = (iso: string) => iso.split("-").reverse().join("-");
 const s = (v: unknown) => (v == null ? "" : String(v).replace(".", ","));
 const n = (v: string) => (v.trim() === "" ? null : Number(v.replace(/\s/g, "").replace(",", ".")));
 
@@ -373,7 +374,7 @@ function EditarTarifa({
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label>Vigente desde</label>
-            <input type="date" value={f.vigente_desde} onChange={set("vigente_desde")} />
+            <CampoFecha valor={f.vigente_desde} onChange={(v) => setF((p) => ({ ...p, vigente_desde: v }))} />
           </div>
           <div>
             <label>Facturado por servicio (€)</label>
