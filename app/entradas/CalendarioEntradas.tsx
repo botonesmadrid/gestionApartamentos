@@ -6,7 +6,7 @@
 // Las entradas se envían solas a Google Calendar (al crearlas, modificarlas o cancelarlas, y en una revisión cada
 // 10 minutos) cuando tienen piso asignado y titular; cada barra indica si está al día y al pulsarla se puede reenviar.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { COLOR_SIN_ASIGNAR, hexCliente } from "@/lib/coloresCalendario";
 
@@ -70,7 +70,22 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
   const [cargando, setCargando] = useState(true);
   const [ocultos, setOcultos] = useState<Set<string>>(new Set());
   const [elegida, setElegida] = useState<Entrada | null>(null);
-  const [panelAbierto, setPanelAbierto] = useState(true);
+  const [panelAbierto, setPanelAbierto] = useState(false);
+  const refPisos = useRef<HTMLDivElement>(null);
+  // El desplegable de pisos se cierra al pulsar fuera o con Escape.
+  useEffect(() => {
+    if (!panelAbierto) return;
+    const fuera = (e: MouseEvent) => {
+      if (refPisos.current && !refPisos.current.contains(e.target as Node)) setPanelAbierto(false);
+    };
+    const escape = (e: KeyboardEvent) => e.key === "Escape" && setPanelAbierto(false);
+    document.addEventListener("mousedown", fuera);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", fuera);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [panelAbierto]);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const fin = sumar(inicio, DIAS);
@@ -138,10 +153,6 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
 
   const totalPisos = grupos.reduce((n, g) => n + g.pisos.length, 0);
   const pisosVisibles = grupos.reduce((n, g) => n + g.pisos.filter((p) => !ocultos.has(p.id)).length, 0);
-  // En móvil el panel de filtros empieza plegado.
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 1023px)").matches) setPanelAbierto(false);
-  }, []);
 
   const diasVista = Array.from({ length: DIAS }, (_, i) => sumar(inicio, i));
 
@@ -206,6 +217,53 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
             <span className="hidden sm:inline">Semana</span> →
           </button>
           <input type="date" aria-label="Desde" className="!w-auto !py-1.5" value={inicio} onChange={(e) => e.target.value && setInicio(e.target.value)} />
+          {/* Pisos visibles: desplegable junto a las fechas, para que el calendario ocupe todo el ancho */}
+          <div ref={refPisos} className="relative">
+            <button
+              type="button"
+              onClick={() => setPanelAbierto((v) => !v)}
+              aria-expanded={panelAbierto}
+              className={`rounded-md border px-2.5 py-1.5 hover:bg-paper ${pisosVisibles < totalPisos ? "border-ink/40 font-medium" : "border-line"}`}
+            >
+              Pisos visibles <span className="font-normal text-ink/50">({pisosVisibles}/{totalPisos})</span>{" "}
+              <span aria-hidden className="text-ink/40">{panelAbierto ? "▴" : "▾"}</span>
+            </button>
+            {panelAbierto && (
+              <div className="absolute left-0 z-30 mt-1 max-h-[70vh] w-60 space-y-3 overflow-y-auto rounded-lg border border-line bg-white px-3 py-3 shadow-lg">
+                {grupos.map((g) => {
+                  const visibles = g.pisos.filter((p) => !ocultos.has(p.id)).length;
+                  const todos = visibles === g.pisos.length;
+                  return (
+                    <div key={g.cliente.id}>
+                      <label className="!mb-0 flex items-center gap-2 !text-sm !font-medium !text-ink">
+                        <input
+                          type="checkbox"
+                          className="!w-auto"
+                          checked={visibles > 0}
+                          ref={(el) => {
+                            if (el) el.indeterminate = visibles > 0 && !todos;
+                          }}
+                          onChange={() => fijar(g.pisos.map((p) => p.id), todos)}
+                        />
+                        <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: g.color }} />
+                        <span className="truncate">{g.cliente.nombre}</span>
+                      </label>
+                      {g.pisos.length > 1 && (
+                        <div className="ml-6 mt-1 space-y-0.5">
+                          {g.pisos.map((p) => (
+                            <label key={p.id} className="!mb-0 flex items-center gap-2 !text-xs !font-normal !text-ink/70">
+                              <input type="checkbox" className="!w-auto" checked={!ocultos.has(p.id)} onChange={() => fijar([p.id], !ocultos.has(p.id))} />
+                              {p.piso}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
         <p className="text-xs text-ink/50">
           {resumen.total} entradas · <span className="text-emerald-700">✓ {resumen.alDia} al día</span> · <span className="text-amber-700">↻ {resumen.cambiadas} cambiadas</span> ·{" "}
@@ -213,49 +271,9 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
         </p>
       </div>
 
-      <div className="mt-3 lg:flex lg:items-start lg:gap-4">
-        {/* Filtros: en el lateral (en móvil, desplegable) */}
-        <details className="mb-3 rounded-lg border border-line bg-white lg:sticky lg:top-4 lg:mb-0 lg:w-52 lg:shrink-0" open={panelAbierto} onToggle={(e) => setPanelAbierto((e.target as HTMLDetailsElement).open)}>
-          <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium lg:cursor-default">
-            Pisos visibles <span className="font-normal text-ink/50">({pisosVisibles}/{totalPisos})</span>
-          </summary>
-          <div className="space-y-3 border-t border-line px-3 py-3">
-            {grupos.map((g) => {
-              const visibles = g.pisos.filter((p) => !ocultos.has(p.id)).length;
-              const todos = visibles === g.pisos.length;
-              return (
-                <div key={g.cliente.id}>
-                  <label className="!mb-0 flex items-center gap-2 !text-sm !font-medium !text-ink">
-                    <input
-                      type="checkbox"
-                      className="!w-auto"
-                      checked={visibles > 0}
-                      ref={(el) => {
-                        if (el) el.indeterminate = visibles > 0 && !todos;
-                      }}
-                      onChange={() => fijar(g.pisos.map((p) => p.id), todos)}
-                    />
-                    <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: g.color }} />
-                    <span className="truncate">{g.cliente.nombre}</span>
-                  </label>
-                  {g.pisos.length > 1 && (
-                    <div className="ml-6 mt-1 space-y-0.5">
-                      {g.pisos.map((p) => (
-                        <label key={p.id} className="!mb-0 flex items-center gap-2 !text-xs !font-normal !text-ink/70">
-                          <input type="checkbox" className="!w-auto" checked={!ocultos.has(p.id)} onChange={() => fijar([p.id], !ocultos.has(p.id))} />
-                          {p.piso}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </details>
-
+      <div className="mt-3">
       {/* Calendario */}
-      <div className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-line bg-white">
+      <div className="min-w-0 overflow-x-auto rounded-lg border border-line bg-white">
         <div style={{ width: 150 + DIAS * ANCHO_DIA }}>
           <div className="sticky top-0 z-10 flex border-b border-line bg-white">
             <div className="sticky left-0 z-20 w-[150px] shrink-0 border-r border-line bg-white px-2 py-1.5 text-xs text-ink/50">
