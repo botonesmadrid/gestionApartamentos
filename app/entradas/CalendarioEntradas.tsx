@@ -225,7 +225,7 @@ export default function CalendarioEntradas({ apartamentos, clientes }: { apartam
               type="button"
               onClick={() => setPanelAbierto((v) => !v)}
               aria-expanded={panelAbierto}
-              className={`rounded-md border px-2.5 py-1.5 hover:bg-paper ${pisosVisibles < totalPisos ? "border-ink/40 font-medium" : "border-line"}`}
+              className={`rounded-md border bg-white px-2.5 py-1.5 hover:bg-paper ${pisosVisibles < totalPisos ? "border-ink/40 font-medium" : "border-line"}`}
             >
               Pisos visibles <span className="font-normal text-ink/50">({pisosVisibles}/{totalPisos})</span>{" "}
               <span aria-hidden className="text-ink/40">{panelAbierto ? "▴" : "▾"}</span>
