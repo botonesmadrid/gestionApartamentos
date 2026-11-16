@@ -65,6 +65,7 @@ type Reserva = {
   fecha_pago: string | null;
   duracion: number | null;
   estado: "confirmada" | "cancelada";
+  cancelada_at: string | null;
   fase: Fase;
   formulario_enviado_at: string | null;
   formulario_completado_at: string | null;
@@ -644,139 +645,38 @@ function SesHospedajes({ reserva, onCambio }: { reserva: Reserva; onCambio: () =
   );
 }
 
-// Envío del enlace del formulario al titular: WhatsApp, email o copiar.
+// Enlace del formulario de huéspedes de esta entrada: copiarlo (se marca como enviado) o abrirlo.
 function EnviarFormulario({ reserva, onEnviado }: { reserva: Reserva; onEnviado: () => void }) {
-  const supabase = useMemo(() => createClient(), []);
-  const [email, setEmail] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
-  const [modoEmail, setModoEmail] = useState(false);
-  const [destinatario, setDestinatario] = useState("");
-  const [enviandoEmail, setEnviandoEmail] = useState(false);
-  const [resultadoEmail, setResultadoEmail] = useState<"" | "ok" | string>("");
-
-  // El email del titular viene en el último aviso del channel manager (si lo trae).
-  useEffect(() => {
-    supabase
-      .from("avisos_canal")
-      .select("datos")
-      .eq("reserva_id", reserva.id)
-      .order("recibido_at", { ascending: false })
-      .limit(1)
-      .then(({ data }) => {
-        const e = (data?.[0]?.datos as any)?.email ?? null;
-        setEmail(e);
-        setDestinatario((d) => d || e || "");
-      });
-  }, [reserva.id, supabase]);
-
   const enlace = `${DOMINIO_REGISTRO}/f/${reserva.formulario_token}`;
-  const nombre = reserva.nombre.split(" ")[0];
-  const n = reserva.num_huespedes;
-  const fechas = `${formatoFecha(reserva.fecha_entrada)} – ${formatoFecha(reserva.fecha_salida)}`;
-  const mensaje =
-    `Hola ${nombre}, para completar tu reserva (${fechas}) necesitamos los datos de ${n ? `los ${n} huéspedes` : "todos los huéspedes"}, ` +
-    `es obligatorio por ley en España. Son 2 minutos por persona:\n${enlace}\n\n` +
-    `Hi ${nombre}, to complete your booking (${fechas}) we need the details of ${n ? `all ${n} guests` : "all guests"}, ` +
-    `as required by Spanish law. It takes 2 minutes per person:\n${enlace}\n\nEl Botones Madrid`;
-  const telefono = (reserva.telefono ?? "").replace(/\D/g, "");
-  const whatsapp = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-  const mailto =
-    `mailto:${destinatario || email || ""}?subject=${encodeURIComponent("Registro de huéspedes / Guest registration · El Botones Madrid")}` +
-    `&body=${encodeURIComponent(mensaje)}`;
-
   const enviado = reserva.formulario_enviado_at
     ? new Date(reserva.formulario_enviado_at).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })
     : null;
 
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(enlace);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch {
+      window.prompt("Copia el enlace del formulario:", enlace);
+    }
+    onEnviado();
+  }
+
   return (
-    <div className="w-full rounded-md border border-line bg-paper p-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <a
-          href={whatsapp}
-          target="_blank"
-          rel="noreferrer"
-          onClick={onEnviado}
-          className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-          title={telefono ? `Abrir WhatsApp con +${telefono}` : "Sin teléfono: elegirás el contacto en WhatsApp"}
-        >
-          WhatsApp
-        </a>
-        <button
-          type="button"
-          onClick={() => setModoEmail((v) => !v)}
-          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
-        >
-          Email
-        </button>
-        <button
-          type="button"
-          onClick={async () => {
-            await navigator.clipboard.writeText(enlace);
-            setCopiado(true);
-            setTimeout(() => setCopiado(false), 1500);
-            onEnviado();
-          }}
-          className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
-        >
-          {copiado ? "¡Copiado!" : "Copiar enlace"}
-        </button>
-        <a href={enlace} target="_blank" rel="noreferrer" className="text-xs text-ink/50 underline hover:text-ink">
-          Ver formulario
-        </a>
-      </div>
-      {modoEmail && (
-        <form
-          className="mt-2 flex flex-wrap items-center gap-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setEnviandoEmail(true);
-            setResultadoEmail("");
-            const { data, error } = await supabase.functions.invoke("enviar-formulario", {
-              body: { reserva_id: reserva.id, destinatario },
-            });
-            setEnviandoEmail(false);
-            if (error || !(data as any)?.ok) {
-              let motivo = (data as any)?.error ?? "";
-              try {
-                motivo = (await (error as any)?.context?.json())?.error ?? motivo;
-              } catch {}
-              setResultadoEmail(
-                motivo === "email_invalido" ? "Revisa la dirección de email." : "No se ha podido enviar. Prueba con «abrir en mi correo».",
-              );
-              return;
-            }
-            setResultadoEmail("ok");
-            onEnviado();
-          }}
-        >
-          <input
-            type="email"
-            required
-            aria-label="Email del titular"
-            placeholder="email del titular"
-            className="!w-64 !py-1 !text-xs"
-            value={destinatario}
-            onChange={(e) => setDestinatario(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={enviandoEmail || !destinatario}
-            className="rounded-md bg-ink px-2.5 py-1 text-xs font-medium text-paper disabled:opacity-40"
-          >
-            {enviandoEmail ? "Enviando…" : "Enviar email"}
-          </button>
-          <a href={mailto} onClick={onEnviado} className="text-xs text-ink/50 underline hover:text-ink">
-            o abrir en mi correo
-          </a>
-          {resultadoEmail === "ok" && <span className="text-xs text-emerald-700">✓ Email enviado desde hola@botonesmadrid.com</span>}
-          {resultadoEmail && resultadoEmail !== "ok" && <span className="text-xs text-clay">{resultadoEmail}</span>}
-        </form>
-      )}
-      <p className="mt-1.5 text-xs text-ink/50">
-        {enviado ? `Enviado el ${enviado}` : "Aún no enviado"}
-        {!telefono && " · sin teléfono del titular"}
-        {email === null ? "" : ` · ${email}`}
-      </p>
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={copiar}
+        className="rounded-md border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink/80 hover:text-ink"
+      >
+        {copiado ? "¡Copiado!" : "Copiar enlace"}
+      </button>
+      <a href={enlace} target="_blank" rel="noreferrer" className="text-xs text-ink/50 underline hover:text-ink">
+        Ver formulario
+      </a>
+      <span className="text-xs text-ink/50">{enviado ? `Enviado el ${enviado}` : "Aún no enviado"}</span>
     </div>
   );
 }
@@ -882,9 +782,56 @@ function EtiquetaFase({ fase }: { fase: Fase }) {
   );
 }
 
-// Pasos del flujo en el detalle de la reserva. Mientras no estén automatizados
-// (formulario, firma con HelloSign, check-in), se pueden marcar a mano.
-function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () => void }) {
+// Estado visual de un paso del flujo: hecho (verde), el siguiente por hacer (ámbar), con aviso (rojo) o pendiente (gris).
+type EstadoPaso = "hecho" | "siguiente" | "aviso" | "pendiente";
+const ESTILO_PASO: Record<EstadoPaso, { circulo: string; chip: string; texto: string }> = {
+  hecho: { circulo: "border-emerald-600 bg-emerald-600 text-white", chip: "bg-emerald-50 text-emerald-800", texto: "Hecho" },
+  siguiente: { circulo: "border-amber-400 bg-amber-50 text-amber-900", chip: "bg-amber-50 text-amber-900", texto: "Siguiente" },
+  aviso: { circulo: "border-clay bg-clay/10 text-clay", chip: "bg-clay/10 text-clay", texto: "Revisar" },
+  pendiente: { circulo: "border-line bg-white text-ink/40", chip: "bg-ink/5 text-ink/50", texto: "Pendiente" },
+};
+
+// Un paso del flujo: círculo numerado unido al siguiente por una línea, título con su estado, resumen y acciones.
+function Paso({
+  numero,
+  titulo,
+  estado,
+  resumen,
+  ultimo,
+  children,
+}: {
+  numero: number;
+  titulo: string;
+  estado: EstadoPaso;
+  resumen?: React.ReactNode;
+  ultimo?: boolean;
+  children?: React.ReactNode;
+}) {
+  const e = ESTILO_PASO[estado];
+  return (
+    <li className="relative flex gap-3 pb-5 last:pb-0">
+      {!ultimo && <span aria-hidden className={`absolute left-[13px] top-7 bottom-0 w-px ${estado === "hecho" ? "bg-emerald-300" : "bg-line"}`} />}
+      <span
+        aria-hidden
+        className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${e.circulo}`}
+      >
+        {estado === "hecho" ? "✓" : estado === "aviso" ? "!" : numero}
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-sm font-semibold">{titulo}</h4>
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${e.chip}`}>{e.texto}</span>
+        </div>
+        {resumen && <div className="mt-0.5 text-xs text-ink/60">{resumen}</div>}
+        {children && <div className="mt-2 flex flex-wrap items-center gap-2">{children}</div>}
+      </div>
+    </li>
+  );
+}
+
+// Flujo de la reserva (en la fila del listado y en el detalle): los cinco pasos con el mismo formato.
+// Mientras no estén automatizados (SES, check-in), se marcan a mano; la firma la marca el correo de HelloSign.
+function PasosReserva({ reserva, onCambio, conDatos }: { reserva: Reserva; onCambio: () => void; conDatos?: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -917,128 +864,174 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
     actualizar({ num_huespedes: n });
   }
 
-  // El formulario se completa solo cuando están registrados todos los huéspedes.
-  // El contrato solo lo firma el titular.
-  // La firma del contrato no se marca a mano: la marca el correo de HelloSign (y su PDF firmado queda en la carpeta).
-  const pasos: { etiqueta: string; hecho: string | null; campo: string; accion: string; disabled?: boolean; ayuda?: string; automatico?: string }[] = [
-    {
-      etiqueta: "Contrato firmado (titular)",
-      hecho: reserva.contrato_firmado_at,
-      campo: "contrato_firmado_at",
-      accion: "",
-      automatico: "Se marca al llegar el correo de firma de HelloSign",
-    },
-    {
-      // Se genera el XML en la carpeta de Drive, se sube a mano a SES Hospedajes y se marca aquí.
-      etiqueta: "SES Hospedajes (comunicado)",
-      hecho: reserva.ses_comunicado_at,
-      campo: "ses_comunicado_at",
-      accion: "Marcar comunicado",
-      disabled: !reserva.ses_xml_id,
-      ayuda: !reserva.ses_xml_id ? "Genera primero el XML" : undefined,
-    },
-    {
-      etiqueta: "Check-in",
-      hecho: reserva.checkin_at,
-      campo: "checkin_at",
-      accion: "Completar check-in",
-      disabled:
-        !yaLlego || reserva.importe_pendiente || reserva.piso_pendiente || contratoDeOtroTitular(reserva) || !reserva.ses_comunicado_at,
-      ayuda: reserva.piso_pendiente
-        ? "Falta el piso"
+  const deOtro = contratoDeOtroTitular(reserva);
+  const hechos = [
+    !reserva.importe_pendiente && !reserva.piso_pendiente,
+    !!reserva.formulario_completado_at,
+    !!reserva.contrato_firmado_at,
+    !!reserva.ses_comunicado_at || !!reserva.checkin_at,
+    !!reserva.checkin_at,
+  ];
+  const siguiente = hechos.findIndex((h) => !h);
+  const estado = (i: number, aviso = false): EstadoPaso =>
+    hechos[i] ? "hecho" : aviso ? "aviso" : i === siguiente && !cancelada ? "siguiente" : "pendiente";
+
+  const bloqueoCheckin = reserva.piso_pendiente
+    ? "Falta el piso"
+    : reserva.importe_pendiente
+      ? "Falta el importe"
+      : deOtro
+        ? "El contrato no está a nombre del titular: regenéralo"
         : !reserva.ses_comunicado_at
           ? "Falta comunicar a SES Hospedajes"
-        : contratoDeOtroTitular(reserva)
-          ? "El contrato no está a nombre del titular: regenéralo"
-        : reserva.importe_pendiente
-          ? "Falta el importe"
           : !yaLlego
             ? "Disponible desde el día de entrada"
-            : undefined,
-    },
-  ];
+            : null;
+  const boton = "rounded-md border border-line bg-white px-2.5 py-1 text-xs text-ink/70 hover:text-ink disabled:opacity-40";
+  const enlace = "text-xs text-ink/50 underline hover:text-ink";
 
   return (
     <div>
-      <ul className="space-y-2">
-        <li className="text-xs font-medium uppercase tracking-wide text-ink/50">Información obligatoria</li>
-        <li className="flex flex-wrap items-center justify-between gap-3">
-          <span>
-            {reserva.piso_pendiente ? "○" : "✓"} Piso
-            {!reserva.piso_pendiente && <span className="ml-2 text-xs text-ink/50">{reserva.apartamentos?.piso ?? "—"}</span>}
-          </span>
+      {cancelada && (
+        <p className="mb-3 rounded-md bg-clay/10 px-3 py-2 text-xs text-clay">
+          Reserva cancelada{reserva.cancelada_at ? ` el ${fechaHora(reserva.cancelada_at)}` : ""}.
+        </p>
+      )}
+      <ol>
+        <Paso
+          numero={1}
+          titulo="Información obligatoria"
+          estado={estado(0)}
+          resumen={
+            <>
+              Piso {reserva.piso_pendiente ? <span className="text-clay">sin asignar</span> : reserva.apartamentos?.piso ?? "—"}
+              {" · "}
+              {reserva.importe_pendiente ? (
+                <span className="text-clay">{reserva.importe != null && reserva.importe_neto == null ? "falta la comisión" : "falta el importe"}</span>
+              ) : reserva.importe != null ? (
+                <>
+                  {euros(reserva.importe)}
+                  {reserva.comision_portal != null && ` · comisión ${euros(reserva.comision_portal)}`}
+                </>
+              ) : (
+                "sin importe"
+              )}
+              {conDatos && reserva.importe_neto != null && ` · neto ${euros(reserva.importe_neto)}`}
+              {conDatos && reserva.formas_pago?.descripcion && ` · ${reserva.formas_pago.descripcion}`}
+              {conDatos && reserva.fecha_pago && ` · pagado el ${formatoFecha(reserva.fecha_pago)}`}
+            </>
+          }
+        >
           {!cancelada && reserva.piso_pendiente && <PisoPendiente reserva={reserva} onGuardado={onCambio} />}
-        </li>
-        <li className="flex flex-wrap items-center justify-between gap-3">
-          <span>
-            {reserva.importe_pendiente ? "○" : "✓"} Importe con comisión
-            {!reserva.importe_pendiente && reserva.importe != null && (
-              <span className="ml-2 text-xs text-ink/50">
-                {euros(reserva.importe)}
-                {reserva.comision_portal != null && ` · comisión ${euros(reserva.comision_portal)}`}
-              </span>
-            )}
-          </span>
-          {!cancelada && (
-            <ImportePendiente reserva={reserva} onGuardado={onCambio} cambiar={!reserva.importe_pendiente} />
-          )}
-        </li>
-        <li className="flex flex-wrap items-center justify-between gap-3">
-          <span>
-            {reserva.formulario_completado_at ? "✓" : "○"} Formulario de huéspedes
-            <span className="ml-2 text-xs text-ink/50">
-              {registrados} de {reserva.num_huespedes ?? "?"} registrados
-            </span>
-          </span>
-          {!cancelada && (
-            <button
-              type="button"
-              disabled={guardando}
-              onClick={cambiarNumHuespedes}
-              className="text-xs text-ink/50 underline hover:text-ink"
-            >
-              Cambiar nº de huéspedes
-            </button>
-          )}
+          {!cancelada && <ImportePendiente reserva={reserva} onGuardado={onCambio} cambiar={!reserva.importe_pendiente} />}
+        </Paso>
+
+        <Paso
+          numero={2}
+          titulo="Formulario de huéspedes"
+          estado={estado(1)}
+          resumen={
+            <>
+              {registrados} de {reserva.num_huespedes ?? "?"} huéspedes registrados
+              {reserva.formulario_completado_at && ` · completado el ${fechaHora(reserva.formulario_completado_at)}`}
+            </>
+          }
+        >
           {!cancelada && !reserva.formulario_completado_at && (
             <EnviarFormulario reserva={reserva} onEnviado={() => actualizar({ formulario_enviado_at: ahora() })} />
           )}
-        </li>
-        {pasos.map((p) => (
-          <li key={p.campo} className="flex flex-wrap items-center justify-between gap-3">
-            <span>
-              {p.hecho ? "✓" : "○"} {p.etiqueta}
-              {p.hecho && <span className="ml-2 text-xs text-ink/50">{fechaHora(p.hecho)}</span>}
-            </span>
-            {!cancelada && p.automatico ? (
-              !p.hecho && <span className="text-xs text-ink/50">{p.automatico}</span>
-            ) : !cancelada &&
-              (p.hecho ? (
-                <button
-                  type="button"
-                  disabled={guardando}
-                  onClick={() => actualizar({ [p.campo]: null }, `¿Deshacer "${p.etiqueta}"?`)}
-                  className="text-xs text-ink/50 underline hover:text-ink"
-                >
-                  Deshacer
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={guardando || p.disabled}
-                  title={p.ayuda}
-                  onClick={() => actualizar({ [p.campo]: ahora() })}
-                  className="rounded-md border border-line px-2.5 py-1 text-xs text-ink/70 hover:text-ink disabled:opacity-40"
-                >
-                  {p.accion}
-                </button>
-              ))}
-            {p.campo === "contrato_firmado_at" && !cancelada && <ContratoPdf reserva={reserva} onCambio={onCambio} />}
-            {p.campo === "ses_comunicado_at" && !cancelada && !reserva.checkin_at && <SesHospedajes reserva={reserva} onCambio={onCambio} />}
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4 flex justify-end">
+          {!cancelada && (
+            <button type="button" disabled={guardando} onClick={cambiarNumHuespedes} className={enlace}>
+              Cambiar nº de huéspedes
+            </button>
+          )}
+        </Paso>
+
+        <Paso
+          numero={3}
+          titulo="Contrato firmado"
+          estado={estado(2, deOtro)}
+          resumen={
+            reserva.contrato_firmado_at
+              ? `Firmado el ${fechaHora(reserva.contrato_firmado_at)}`
+              : "Se marca solo al llegar el correo de firma de HelloSign"
+          }
+        >
+          {!cancelada && <ContratoPdf reserva={reserva} onCambio={onCambio} />}
+          {cancelada && conDatos && <EnlacesContrato reserva={reserva} />}
+        </Paso>
+
+        <Paso
+          numero={4}
+          titulo="SES Hospedajes"
+          estado={estado(3)}
+          resumen={
+            reserva.ses_comunicado_at
+              ? `Comunicado el ${fechaHora(reserva.ses_comunicado_at)}`
+              : reserva.ses_xml_id
+                ? "XML generado: súbelo a SES Hospedajes y márcalo como comunicado"
+                : "Genera el XML del parte de viajeros"
+          }
+        >
+          {!cancelada && !reserva.checkin_at && <SesHospedajes reserva={reserva} onCambio={onCambio} />}
+          {!cancelada &&
+            (reserva.ses_comunicado_at ? (
+              <button
+                type="button"
+                disabled={guardando}
+                onClick={() => actualizar({ ses_comunicado_at: null }, "¿Deshacer «SES Hospedajes comunicado»?")}
+                className={enlace}
+              >
+                Deshacer
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={guardando || !reserva.ses_xml_id}
+                title={!reserva.ses_xml_id ? "Genera primero el XML" : undefined}
+                onClick={() => actualizar({ ses_comunicado_at: ahora() })}
+                className={boton}
+              >
+                Marcar comunicado
+              </button>
+            ))}
+        </Paso>
+
+        <Paso
+          numero={5}
+          titulo="Check-in"
+          estado={estado(4)}
+          ultimo
+          resumen={
+            reserva.checkin_at
+              ? `Completado el ${fechaHora(reserva.checkin_at)}`
+              : bloqueoCheckin ?? `Entrada el ${formatoFecha(reserva.fecha_entrada)}`
+          }
+        >
+          {!cancelada &&
+            (reserva.checkin_at ? (
+              <button
+                type="button"
+                disabled={guardando}
+                onClick={() => actualizar({ checkin_at: null }, "¿Deshacer el check-in?")}
+                className={enlace}
+              >
+                Deshacer
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={guardando || !!bloqueoCheckin}
+                title={bloqueoCheckin ?? undefined}
+                onClick={() => actualizar({ checkin_at: ahora() })}
+                className={boton}
+              >
+                Completar check-in
+              </button>
+            ))}
+        </Paso>
+      </ol>
+      <div className="mt-4 flex justify-end border-t border-line pt-3">
         {cancelada ? (
           <button
             type="button"
@@ -1065,6 +1058,47 @@ function PasosReserva({ reserva, onCambio }: { reserva: Reserva; onCambio: () =>
         )}
       </div>
       {error && <p className="mt-2 text-xs text-clay">{error}</p>}
+    </div>
+  );
+}
+
+// Detalle de una entrada: cabecera con los datos de la reserva y, debajo, su flujo de pasos.
+function DetalleEntrada({ reserva: r, onCambio }: { reserva: Reserva; onCambio: () => void }) {
+  const datos: [string, React.ReactNode][] = [
+    ["Entrada", formatoFecha(r.fecha_entrada)],
+    ["Salida", formatoFecha(r.fecha_salida)],
+    ["Noches", r.duracion ?? "—"],
+    ["Reservada", formatoFecha(r.fecha_reserva)],
+    ["Origen", r.origenes_reserva?.nombre ?? "—"],
+    ["Código", r.codigo_reserva ?? "—"],
+    ["Teléfono", r.telefono ?? "—"],
+    ["Canal", r.canal ?? "—"],
+  ];
+  return (
+    <div>
+      <div className="rounded-lg border border-line bg-paper p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-display text-lg font-semibold leading-tight">
+              {[r.nombre, r.apellido1, r.apellido2].filter(Boolean).join(" ")}
+            </p>
+            <p className="text-xs text-ink/60">
+              {r.apartamentos?.piso ?? "—"} · {r.num_huespedes ?? "?"} huéspedes
+            </p>
+          </div>
+          <EtiquetaFase fase={r.fase} />
+        </div>
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+          {datos.map(([etiqueta, valor]) => (
+            <div key={etiqueta} className="min-w-0">
+              <dt className="text-[11px] uppercase tracking-wide text-ink/45">{etiqueta}</dt>
+              <dd className="truncate text-sm font-medium">{valor}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <h3 className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink/50">Flujo de la entrada</h3>
+      <PasosReserva reserva={r} onCambio={onCambio} conDatos />
     </div>
   );
 }
@@ -1177,7 +1211,7 @@ export default function EntradasView({
       .select(
         `id, apartamento_id, fecha_reserva, fecha_entrada, fecha_salida, nombre, apellido1, apellido2,
          importe, comision_portal, codigo_reserva, telefono, fecha_pago, duracion, origen_codigo, forma_pago_codigo,
-         estado, canal, importe_neto, importe_pendiente, piso_pendiente, fase,
+         estado, cancelada_at, canal, importe_neto, importe_pendiente, piso_pendiente, fase,
          formulario_enviado_at, formulario_completado_at, contrato_enviado_at, contrato_firmado_at, checkin_at,
          num_huespedes, formulario_token, titular_huesped_id, contrato_titular_huesped_id, ses_xml_id, ses_generado_at, ses_comunicado_at, contrato_generado_at, contrato_pdf_id, contrato_carpeta_id, contrato_firmado_pdf_id,
          apartamentos!inner(piso, cliente_id),
@@ -1660,6 +1694,7 @@ export default function EntradasView({
 
       {detalleReserva && (
         <ModalDetalle
+          ancho
           titulo={editando ? "Editar entrada" : "Detalle de la entrada"}
           onCerrar={cerrarDetalle}
           onEditar={editando ? undefined : () => setEditando(true)}
@@ -1675,33 +1710,13 @@ export default function EntradasView({
               }}
             />
           ) : (
-          <dl className="space-y-2">
-          <FilaDetalle etiqueta="Piso" valor={detalleReserva.apartamentos?.piso} />
-          <FilaDetalle etiqueta="Fecha de reserva" valor={formatoFecha(detalleReserva.fecha_reserva)} />
-          <FilaDetalle etiqueta="Entrada" valor={formatoFecha(detalleReserva.fecha_entrada)} />
-          <FilaDetalle etiqueta="Salida" valor={formatoFecha(detalleReserva.fecha_salida)} />
-          <FilaDetalle etiqueta="Duración (noches)" valor={detalleReserva.duracion} />
-          <FilaDetalle
-            etiqueta="Titular"
-            valor={`${detalleReserva.nombre} ${detalleReserva.apellido1 ?? ""} ${
-              detalleReserva.apellido2 ?? ""
-            }`}
-          />
-          <FilaDetalle etiqueta="Importe" valor={detalleReserva.importe != null ? `${detalleReserva.importe} €` : "—"} />
-          <FilaDetalle
-            etiqueta="Comisión portal"
-            valor={detalleReserva.comision_portal != null ? `${detalleReserva.comision_portal} €` : "—"}
-          />
-          <FilaDetalle etiqueta="Código de reserva" valor={detalleReserva.codigo_reserva} />
-          <FilaDetalle etiqueta="Teléfono" valor={detalleReserva.telefono} />
-          <FilaDetalle etiqueta="Origen" valor={detalleReserva.origenes_reserva?.nombre} />
-          <FilaDetalle etiqueta="Forma de pago" valor={detalleReserva.formas_pago?.descripcion} />
-          <FilaDetalle etiqueta="Fecha de pago" valor={formatoFecha(detalleReserva.fecha_pago)} />
-          <FilaDetalle etiqueta="Importe neto (portal)" valor={detalleReserva.importe_neto != null ? euros(detalleReserva.importe_neto) : null} />
-          <FilaDetalle etiqueta="Estado" valor={<EtiquetaFase fase={detalleReserva.fase} />} />
-          <FilaDetalle etiqueta="Canal" valor={detalleReserva.canal} />
-          <FilaDetalle etiqueta="Contrato" valor={<EnlacesContrato reserva={detalleReserva} />} />
-          </dl>
+            <DetalleEntrada
+              reserva={reservas.find((x) => x.id === detalleReserva.id) ?? detalleReserva}
+              onCambio={() => {
+                window.dispatchEvent(new Event("pendientes-cambiados"));
+                cargar();
+              }}
+            />
           )}
           {!editando && (
             <AccionesEntrada
@@ -1810,18 +1825,20 @@ function ModalDetalle({
   titulo,
   onCerrar,
   onEditar,
+  ancho,
   children,
 }: {
   titulo: string;
   onCerrar: () => void;
   onEditar?: () => void;
+  ancho?: boolean;
   children: React.ReactNode;
 }) {
   // Pulsar fuera cierra solo en modo consulta (al editar se perderían los cambios).
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4" onClick={onEditar ? onCerrar : undefined}>
       <div
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6"
+        className={`max-h-[85vh] w-full ${ancho ? "max-w-2xl" : "max-w-lg"} overflow-y-auto rounded-lg bg-white p-6`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
